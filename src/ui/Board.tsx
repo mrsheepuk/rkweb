@@ -8,12 +8,12 @@ import {
   closestCorners,
   pointerWithin,
   rectIntersection,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
-  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -28,23 +28,26 @@ import type { Tile } from "../game/types";
 import type { MeldIds } from "../game/rules";
 import { analyzeMeld } from "../game/melds";
 import { rackSortKey } from "../game/tiles";
+import { playClack } from "./sounds";
 import { TileView } from "./TileView";
 
-const RACK_ROWS = ["rack-0", "rack-1", "rack-2"];
-const RACK_ROW_COUNT = RACK_ROWS.length;
+/** Columns in the rack grid; rows grow as a hand gets larger. */
+const COLS = 16;
 const NEW_MELD = "new-meld";
 
-type Containers = Record<string, string[]>;
+type Slots = (string | null)[];
+type Melds = Record<string, string[]>;
 
 export interface BoardHandle {
   table: MeldIds[];
   rack: string[];
 }
 
-// Prefer the drop zone directly under the pointer, then any it overlaps, and
-// only fall back to nearest-corner. Without this, a large/wrapped drop zone
-// (e.g. the full-width "new meld" box on its own line) loses out to a nearer
-// existing meld's corner, so tiles can't be dropped onto it.
+const isMeldKey = (k: string) => k.startsWith("meld-");
+const meldNum = (k: string) => Number(k.slice(5));
+
+// Prefer the slot/zone directly under the pointer, then any it overlaps, then
+// nearest corner. Keeps drops accurate for both small slots and large zones.
 const collisionDetection: CollisionDetection = (args) => {
   const pointer = pointerWithin(args);
   if (pointer.length > 0) return pointer;
@@ -53,58 +56,80 @@ const collisionDetection: CollisionDetection = (args) => {
   return closestCorners(args);
 };
 
-const isMeldKey = (k: string) => k.startsWith("meld-");
-const isRackKey = (k: string) => k.startsWith("rack-");
-const meldNum = (k: string) => Number(k.slice(5));
+/** Enough rows to hold the hand plus at least one spare row, min 3. */
+function slotCountFor(handSize: number): number {
+  const rows = Math.max(3, Math.ceil((handSize + 1) / COLS));
+  return rows * COLS;
+}
 
-/** Splits an ordered id list across the rack rows, roughly balanced. */
-function chunkRows(ids: string[]): string[][] {
-  const out: string[][] = Array.from({ length: RACK_ROW_COUNT }, () => []);
-  const per = Math.ceil(ids.length / RACK_ROW_COUNT) || 1;
-  ids.forEach((id, i) => out[Math.min(RACK_ROW_COUNT - 1, Math.floor(i / per))]!.push(id));
-  return out;
+function firstEmpty(slots: Slots, except = -1): number {
+  for (let i = 0; i < slots.length; i++) if (slots[i] === null && i !== except) return i;
+  return -1;
 }
 
 /**
- * Reconciles the rack rows with the set of tiles that *should* be in the rack:
- * keeps tiles already placed where the player put them, drops tiles no longer
- * present (played/committed), and appends genuinely new tiles (drawn) to the
- * shortest row. This is what makes a player's hand-sorting persist across other
- * players' turns instead of being reset.
+ * Keeps each tile in the slot the player put it in (preserving gaps), drops
+ * tiles no longer in hand, and drops genuinely new tiles (drawn) into the
+ * first free slots. This is what lets a player's free-form rack layout persist
+ * across turns and reloads.
  */
-function reconcileRows(rows: string[][], wanted: string[]): string[][] {
+function reconcileSlots(prev: Slots, wanted: string[], len: number): Slots {
   const want = new Set(wanted);
-  const seen = new Set<string>();
-  const kept: string[][] = [];
-  for (let i = 0; i < RACK_ROW_COUNT; i++) {
-    const src = rows[i] ?? [];
-    kept.push(src.filter((id) => want.has(id) && !seen.has(id) && (seen.add(id), true)));
+  const placed = new Set<string>();
+  const slots: Slots = [];
+  for (let i = 0; i < len; i++) {
+    const id = prev[i] ?? null;
+    if (id && want.has(id) && !placed.has(id)) {
+      slots[i] = id;
+      placed.add(id);
+    } else {
+      slots[i] = null;
+    }
   }
+  let cursor = 0;
   for (const id of wanted) {
-    if (seen.has(id)) continue;
-    let t = 0;
-    for (let i = 1; i < RACK_ROW_COUNT; i++) if (kept[i]!.length < kept[t]!.length) t = i;
-    kept[t]!.push(id);
-    seen.add(id);
+    if (placed.has(id)) continue;
+    while (cursor < len && slots[cursor] !== null) cursor++;
+    if (cursor < len) {
+      slots[cursor] = id;
+      placed.add(id);
+    }
   }
-  return kept;
+  return slots;
 }
 
-function loadRack(key: string): string[][] | null {
+function rebuildMelds(table: MeldIds[]): Melds {
+  const m: Melds = {};
+  table.forEach((tiles, i) => (m[`meld-${i}`] = [...tiles]));
+  return m;
+}
+
+function pruneEmpty(melds: Melds): Melds {
+  const out: Melds = {};
+  for (const k of Object.keys(melds)) if ((melds[k] ?? []).length > 0) out[k] = melds[k]!;
+  return out;
+}
+
+function loadSlots(key: string): Slots | null {
   try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? "null");
-    if (Array.isArray(parsed) && parsed.every((r) => Array.isArray(r))) return parsed as string[][];
+    const p = JSON.parse(localStorage.getItem(key) ?? "null");
+    if (Array.isArray(p) && p.every((x) => x === null || typeof x === "string")) return p as Slots;
   } catch {
-    /* ignore corrupt storage */
+    /* ignore corrupt / old-format storage */
   }
   return null;
 }
 
+type Located = { kind: "slot"; index: number } | { kind: "meld"; key: string };
+type Target =
+  | { kind: "slot"; index: number }
+  | { kind: "meld"; key: string; index: number }
+  | { kind: "newmeld" };
+
 /**
- * The play surface. The committed game state is the source of truth; the table
- * working copy is editable only on your turn, while the rack can always be
- * rearranged (mirroring the physical three-row tile holder). Rack layout is
- * reconciled — not reset — on updates, and persisted to localStorage.
+ * The play surface. The rack is a free-form grid of tile-shaped slots the
+ * player can arrange however they like (gaps allowed), rearrangeable at any
+ * time. The table melds are ordered lists, editable only on the player's turn.
  */
 export function Board({
   committedTable,
@@ -126,82 +151,70 @@ export function Board({
   const committedKey = useMemo(() => JSON.stringify(committedTable), [committedTable]);
   const handKey = useMemo(() => JSON.stringify(hand), [hand]);
 
-  const [containers, setContainers] = useState<Containers>(() => {
-    const init: Containers = {};
-    const saved = loadRack(storageKey);
-    const rows = saved ? reconcileRows(saved, hand) : chunkRows([...hand]);
-    RACK_ROWS.forEach((k, i) => (init[k] = rows[i] ?? []));
-    committedTable.forEach((m, i) => (init[`meld-${i}`] = [...m]));
-    return init;
-  });
+  const [slots, setSlots] = useState<Slots>(() =>
+    reconcileSlots(loadSlots(storageKey) ?? [], hand, slotCountFor(hand.length)),
+  );
+  const [melds, setMelds] = useState<Melds>(() => rebuildMelds(committedTable));
   const [activeId, setActiveId] = useState<string | null>(null);
+
   const nextMeldId = useRef(committedTable.length);
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
+  const meldsRef = useRef(melds);
+  meldsRef.current = melds;
 
   const prevMyTurn = useRef(myTurn);
   const prevReset = useRef(resetNonce);
   const prevCommitted = useRef(committedKey);
 
-  // Sync working state with external changes (turn boundaries, opponents'
-  // moves, draws, resets) without clobbering an in-progress play or the rack
-  // sort. The table is re-seeded from the committed state only when it should
-  // be; the rack is always reconciled rather than reset.
+  // Sync working state with external changes without clobbering an in-progress
+  // play or the rack layout.
   useEffect(() => {
-    setContainers((prev) => {
-      const next: Containers = { ...prev };
-      const committedSet = new Set(committedTable.flat());
+    const reseedTable =
+      !myTurn ||
+      prevMyTurn.current !== myTurn ||
+      prevReset.current !== resetNonce ||
+      prevCommitted.current !== committedKey;
 
-      const reseedTable =
-        !myTurn ||
-        prevMyTurn.current !== myTurn ||
-        prevReset.current !== resetNonce ||
-        prevCommitted.current !== committedKey;
+    const workingMelds = reseedTable ? rebuildMelds(committedTable) : meldsRef.current;
+    const committedSet = new Set(committedTable.flat());
+    const staged = new Set(
+      Object.values(workingMelds)
+        .flat()
+        .filter((id) => !committedSet.has(id)),
+    );
+    const wanted = hand.filter((id) => !staged.has(id));
 
-      if (reseedTable) {
-        for (const k of Object.keys(next)) if (isMeldKey(k)) delete next[k];
-        committedTable.forEach((m, i) => (next[`meld-${i}`] = [...m]));
-        nextMeldId.current = committedTable.length;
-      }
+    if (reseedTable) {
+      setMelds(workingMelds);
+      nextMeldId.current = committedTable.length;
+    }
+    setSlots(reconcileSlots(slotsRef.current, wanted, slotCountFor(hand.length)));
 
-      // Tiles staged from hand onto the table this turn shouldn't reappear in
-      // the rack.
-      const staged = new Set(
-        Object.keys(next)
-          .filter(isMeldKey)
-          .flatMap((k) => next[k] ?? [])
-          .filter((id) => !committedSet.has(id)),
-      );
-      const wanted = hand.filter((id) => !staged.has(id));
-      const reconciled = reconcileRows(
-        RACK_ROWS.map((k) => next[k] ?? []),
-        wanted,
-      );
-      RACK_ROWS.forEach((k, i) => (next[k] = reconciled[i] ?? []));
-      return next;
-    });
     prevMyTurn.current = myTurn;
     prevReset.current = resetNonce;
     prevCommitted.current = committedKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myTurn, committedKey, handKey, resetNonce]);
 
-  const containersKey = JSON.stringify(containers);
+  const slotsKey = slots.map((s) => s ?? "").join("|");
+  const meldsKey = JSON.stringify(melds);
 
-  // Persist rack layout and report the current table/rack up for committing.
+  // Persist rack layout and report the committable table/rack upward.
   useEffect(() => {
-    const rackRows = RACK_ROWS.map((k) => containers[k] ?? []);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(rackRows));
+      localStorage.setItem(storageKey, JSON.stringify(slots));
     } catch {
       /* ignore storage failures */
     }
-    const table = Object.keys(containers)
+    const table = Object.keys(melds)
       .filter(isMeldKey)
       .sort((a, b) => meldNum(a) - meldNum(b))
-      .map((k) => containers[k] ?? [])
+      .map((k) => melds[k] ?? [])
       .filter((m) => m.length > 0);
-    onChange({ table, rack: rackRows.flat() });
+    onChange({ table, rack: slots.filter((s): s is string => s !== null) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containersKey]);
+  }, [slotsKey, meldsKey]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -209,96 +222,123 @@ export function Board({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  function findContainer(id: string): string | undefined {
-    if (id in containers) return id;
-    return Object.keys(containers).find((key) => containers[key]!.includes(id));
+  function locate(id: string): Located | null {
+    const si = slots.indexOf(id);
+    if (si >= 0) return { kind: "slot", index: si };
+    for (const k of Object.keys(melds)) if ((melds[k] ?? []).includes(id)) return { kind: "meld", key: k };
+    return null;
   }
 
-  function materializeNewMeld(): string {
-    const key = `meld-${nextMeldId.current++}`;
-    setContainers((prev) => ({ ...prev, [key]: [] }));
-    return key;
-  }
-
-  function handleDragStart(e: DragStartEvent) {
-    setActiveId(String(e.active.id));
-  }
-
-  function handleDragOver(e: DragOverEvent) {
-    const { active, over } = e;
-    if (!over) return;
-    const from = findContainer(String(active.id));
-    let to = findContainer(String(over.id)) ?? String(over.id);
-    if (to === NEW_MELD) {
-      if (!myTurn) return;
-      to = materializeNewMeld();
+  function classifyOver(overId: string): Target | null {
+    if (overId.startsWith("slot-")) return { kind: "slot", index: Number(overId.slice(5)) };
+    if (overId === NEW_MELD) return { kind: "newmeld" };
+    if (overId in melds) return { kind: "meld", key: overId, index: (melds[overId] ?? []).length };
+    for (const k of Object.keys(melds)) {
+      const i = (melds[k] ?? []).indexOf(overId);
+      if (i >= 0) return { kind: "meld", key: k, index: i };
     }
-    if (!from || from === to) return;
-    // Off-turn, tiles may only move between rack rows — the table is locked.
-    if (!myTurn && !isRackKey(to)) return;
-
-    setContainers((prev) => {
-      const fromItems = prev[from] ?? [];
-      const toItems = prev[to] ?? [];
-      if (!fromItems.includes(String(active.id))) return prev;
-      const overIndex = toItems.indexOf(String(over.id));
-      const insertAt = overIndex >= 0 ? overIndex : toItems.length;
-      return {
-        ...prev,
-        [from]: fromItems.filter((t) => t !== String(active.id)),
-        [to]: [...toItems.slice(0, insertAt), String(active.id), ...toItems.slice(insertAt)],
-      };
-    });
+    const si = slots.indexOf(overId);
+    if (si >= 0) return { kind: "slot", index: si };
+    return null;
   }
 
   function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
+    const activeId = String(e.active.id);
     setActiveId(null);
-    if (!over) return;
-    const container = findContainer(String(active.id));
-    if (!container || container !== findContainer(String(over.id))) return;
-    const items = containers[container]!;
-    const oldIndex = items.indexOf(String(active.id));
-    const newIndex = items.indexOf(String(over.id));
-    if (oldIndex !== newIndex && newIndex >= 0) {
-      setContainers((prev) => ({ ...prev, [container]: arrayMove(prev[container]!, oldIndex, newIndex) }));
+    if (!e.over) return;
+    const src = locate(activeId);
+    const target = classifyOver(String(e.over.id));
+    if (!src || !target) return;
+
+    // Off-turn, only rack rearranging (slot ↔ slot) is allowed.
+    const involvesMeld = src.kind === "meld" || target.kind === "meld" || target.kind === "newmeld";
+    if (!myTurn && involvesMeld) return;
+
+    const newSlots = slots.slice();
+    const newMelds: Melds = {};
+    for (const k of Object.keys(melds)) newMelds[k] = melds[k]!.slice();
+
+    // Reorder within the same meld.
+    if (src.kind === "meld" && target.kind === "meld" && src.key === target.key) {
+      const arr = newMelds[src.key]!;
+      const oldI = arr.indexOf(activeId);
+      if (oldI < 0) return;
+      setMelds(pruneEmpty({ ...newMelds, [src.key]: arrayMove(arr, oldI, target.index) }));
+      playClack(0.35);
+      return;
     }
+
+    // Remove from source.
+    if (src.kind === "slot") newSlots[src.index] = null;
+    else newMelds[src.key] = newMelds[src.key]!.filter((x) => x !== activeId);
+
+    if (target.kind === "slot") {
+      const t = target.index;
+      const occupant = slots[t];
+      if (occupant === activeId) return; // dropped onto itself
+      newSlots[t] = activeId;
+      if (occupant) {
+        if (src.kind === "slot") {
+          newSlots[src.index] = occupant; // swap
+        } else {
+          const empty = firstEmpty(newSlots, t); // bump occupant out of the way
+          if (empty < 0) return; // no room — cancel
+          newSlots[empty] = occupant;
+        }
+      }
+      setSlots(newSlots);
+      if (src.kind === "meld") setMelds(pruneEmpty(newMelds));
+      playClack(0.25); // softer tick for arranging the rack
+      return;
+    }
+
+    if (target.kind === "meld") {
+      const arr = newMelds[target.key] ?? (newMelds[target.key] = []);
+      arr.splice(Math.min(target.index, arr.length), 0, activeId);
+      setMelds(pruneEmpty(newMelds));
+      if (src.kind === "slot") setSlots(newSlots);
+      playClack(0.6); // tile lands on the table
+      return;
+    }
+
+    // New meld.
+    newMelds[`meld-${nextMeldId.current++}`] = [activeId];
+    setMelds(pruneEmpty(newMelds));
+    if (src.kind === "slot") setSlots(newSlots);
+    playClack(0.6);
   }
 
   function sortRack() {
-    setContainers((prev) => {
-      const all = RACK_ROWS.flatMap((k) => prev[k] ?? []);
-      all.sort((a, b) => {
+    setSlots((prev) => {
+      const ids = prev.filter((s): s is string => s !== null);
+      ids.sort((a, b) => {
         const ta = index.get(a);
         const tb = index.get(b);
         return ta && tb ? rackSortKey(ta) - rackSortKey(tb) : 0;
       });
-      const rows = chunkRows(all);
-      const next = { ...prev };
-      RACK_ROWS.forEach((k, i) => (next[k] = rows[i] ?? []));
+      const next: Slots = Array.from({ length: prev.length }, (_, i) => ids[i] ?? null);
       return next;
     });
   }
 
   const activeTile = activeId ? index.get(activeId) : null;
-  const meldKeys = Object.keys(containers)
+  const meldKeys = Object.keys(melds)
     .filter(isMeldKey)
     .sort((a, b) => meldNum(a) - meldNum(b))
-    .filter((k) => (containers[k] ?? []).length > 0);
-  const rackCount = RACK_ROWS.reduce((n, k) => n + (containers[k]?.length ?? 0), 0);
+    .filter((k) => (melds[k] ?? []).length > 0);
+  const rackCount = slots.reduce((n, s) => n + (s ? 1 : 0), 0);
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetection}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
+      onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragEnd={handleDragEnd}
     >
       <div className="table-area">
         {meldKeys.length === 0 && <p className="table-empty">No melds on the table yet.</p>}
         {meldKeys.map((key) => (
-          <MeldRow key={key} id={key} items={containers[key] ?? []} index={index} tilesDisabled={!myTurn} variant="meld" />
+          <MeldRow key={key} id={key} items={melds[key] ?? []} index={index} tilesDisabled={!myTurn} />
         ))}
         {myTurn && <NewMeldDrop />}
       </div>
@@ -310,9 +350,9 @@ export function Board({
             Sort
           </button>
         </div>
-        <div className="rack-rows">
-          {RACK_ROWS.map((k) => (
-            <MeldRow key={k} id={k} items={containers[k] ?? []} index={index} tilesDisabled={false} variant="rack" />
+        <div className="rack-grid" style={{ gridTemplateColumns: `repeat(${COLS}, var(--slot-w))` }}>
+          {slots.map((tileId, i) => (
+            <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
           ))}
         </div>
       </div>
@@ -322,28 +362,43 @@ export function Board({
   );
 }
 
+function Slot({ index, tile }: { index: number; tile: Tile | undefined }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `slot-${index}` });
+  return (
+    <div ref={setNodeRef} className={`rack-slot${tile ? " filled" : ""}${isOver ? " over" : ""}`}>
+      {tile ? <DraggableTile id={tile.id} tile={tile} /> : null}
+    </div>
+  );
+}
+
+function DraggableTile({ id, tile }: { id: string; tile: Tile }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <TileView tile={tile} />
+    </div>
+  );
+}
+
 function MeldRow({
   id,
   items,
   index,
   tilesDisabled,
-  variant,
 }: {
   id: string;
   items: string[];
   index: Map<string, Tile>;
   tilesDisabled: boolean;
-  variant: "rack" | "meld";
 }) {
   const { setNodeRef } = useDroppable({ id });
   const tiles = items.map((tid) => index.get(tid)).filter(Boolean) as Tile[];
-  const analysis = variant === "meld" && items.length > 0 ? analyzeMeld(tiles) : null;
-  const cls = [
-    "meld-row",
-    variant === "rack" ? "rack-row" : "meld",
-    analysis && !analysis.valid ? "meld-invalid" : "",
-    analysis?.valid ? "meld-valid" : "",
-  ]
+  const analysis = items.length > 0 ? analyzeMeld(tiles) : null;
+  const cls = ["meld-row", "meld", analysis && !analysis.valid ? "meld-invalid" : "", analysis?.valid ? "meld-valid" : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -362,10 +417,7 @@ function MeldRow({
 }
 
 function SortableTile({ id, tile, disabled }: { id: string; tile: Tile; disabled: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-    disabled,
-  });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,

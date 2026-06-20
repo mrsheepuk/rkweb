@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GameState } from "../state/model";
 import { buildIndex, currentPlayerId } from "../state/engine";
 import { commitTurn, drawTile } from "../sync/gameSync";
 import { Board, type BoardHandle } from "./Board";
+import { isMuted, playTurnComplete, playWin, setMuted } from "./sounds";
 
 export function GameView({
   game,
@@ -18,6 +19,20 @@ export function GameView({
   const [resetNonce, setResetNonce] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [muted, setMutedState] = useState(isMuted());
+
+  // Play a chime whenever a turn passes (any player) and a flourish on a win.
+  const prevTurn = useRef(game.currentTurn);
+  const prevStatus = useRef(game.status);
+  useEffect(() => {
+    if (game.status === "finished" && prevStatus.current !== "finished") {
+      playWin();
+    } else if (game.status === "playing" && game.currentTurn !== prevTurn.current) {
+      playTurnComplete();
+    }
+    prevTurn.current = game.currentTurn;
+    prevStatus.current = game.status;
+  }, [game.currentTurn, game.status]);
 
   const activeId = currentPlayerId(game);
   const myTurn = activeId === me && game.status === "playing";
@@ -75,6 +90,18 @@ export function GameView({
         </div>
         <div className="game-meta">
           <span className="pool-count">Pool: {game.pool.length}</span>
+          <button
+            className="btn btn-link"
+            title={muted ? "Unmute sounds" : "Mute sounds"}
+            aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+            onClick={() => {
+              const next = !muted;
+              setMuted(next);
+              setMutedState(next);
+            }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
           <button className="btn btn-link" onClick={onLeave}>
             Leave
           </button>

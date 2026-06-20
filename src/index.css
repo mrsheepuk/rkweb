@@ -434,17 +434,17 @@ input:focus {
   font-size: 0.85rem;
 }
 
-.rack-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Three physical-style tile rows. Tiles stay on one line per row and the row
-   scrolls horizontally if it overflows, rather than wrapping. */
-.rack-row {
-  flex-wrap: nowrap;
+/* Free-form rack: a fixed grid of tile-shaped slots. Tiles can sit in any
+   slot, leaving gaps, so players can group their hand however they like. The
+   grid scrolls horizontally on narrow screens rather than reflowing. */
+.rack-grid {
+  --slot-w: 46px;
+  --slot-h: 62px;
+  display: grid;
+  grid-auto-rows: var(--slot-h);
+  gap: 5px;
   overflow-x: auto;
+  padding: 4px 2px;
   background: repeating-linear-gradient(
     90deg,
     #2b3648,
@@ -453,7 +453,26 @@ input:focus {
     #26303f 6px
   );
   border-radius: 10px;
-  min-height: 66px;
+}
+
+.rack-slot {
+  width: var(--slot-w);
+  height: var(--slot-h);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.rack-slot.filled {
+  background: transparent;
+  box-shadow: none;
+}
+
+.rack-slot.over {
+  box-shadow: inset 0 0 0 2px var(--primary);
+  background: rgba(34, 197, 94, 0.12);
 }
 
 /* ----- Tiles ----- */
@@ -545,6 +564,10 @@ input:focus {
     width: 38px;
     height: 50px;
     font-size: 1.25rem;
+  }
+  .rack-grid {
+    --slot-w: 40px;
+    --slot-h: 54px;
   }
   .logo {
     font-size: 2rem;
