@@ -79,6 +79,37 @@ use a real project, fill the `VITE_FIREBASE_*` values in `.env` (from the
 Firebase console), set `VITE_USE_EMULATOR=false`, enable **Anonymous** auth, and
 deploy `firestore.rules`.
 
+## Deployment (CI/CD)
+
+Three GitHub Actions workflows are included:
+
+| Workflow | Trigger | What it does |
+| -------- | ------- | ------------ |
+| `ci.yml` | every PR / push to main | typecheck, test, build (no secrets needed) |
+| `firebase-hosting-pull-request.yml` | every PR | deploys a **preview channel** and comments the URL |
+| `firebase-hosting-merge.yml` | push to `main` | deploys to the **live** channel |
+
+### One-time setup (do this once in the Firebase console + GitHub)
+
+1. Create a Firebase project and enable **Hosting** and **Anonymous Auth**.
+2. Wire the service account + secret automatically:
+   ```bash
+   npm i -g firebase-tools
+   firebase login
+   firebase init hosting:github     # links this repo, creates FIREBASE_SERVICE_ACCOUNT secret
+   ```
+   (The included workflows already do the build/deploy, so you can decline its
+   offer to overwrite them — you just want the service-account secret it sets up.)
+   Alternatively, create a service account key manually and add it as the
+   repository secret **`FIREBASE_SERVICE_ACCOUNT`**.
+3. Add a repository **variable** `FIREBASE_PROJECT_ID` = your project id.
+4. Add repository **secrets** for the web config used at build time:
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_APP_ID`.
+5. Deploy the security rules once: `firebase deploy --only firestore:rules`.
+
+Until steps 2–4 are done the two Firebase workflows will fail (missing
+secret) — that's expected; the `ci.yml` check passes regardless.
+
 ## Cheat safety (current trade-off)
 
 For now the full game state — including every player's rack — lives in one
