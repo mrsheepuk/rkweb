@@ -11,10 +11,17 @@
   --felt: #14532d;
 
   --tile-bg: #faf7ee;
-  --tile-red: #d6336c;
-  --tile-blue: #1c7ed6;
-  --tile-black: #212529;
-  --tile-orange: #e8590c;
+  /* Per suit: --*-ink = digit colour, tuned for legibility on the light tile;
+     --*-pip = vivid colour for the corner shape. Suits also differ in
+     lightness so they separate without relying on hue (colour-blind safe). */
+  --red-ink: #c92a2a;
+  --red-pip: #f03e3e;
+  --blue-ink: #1864ab;
+  --blue-pip: #1c7ed6;
+  --black-ink: #212529;
+  --black-pip: #343a40;
+  --orange-ink: #a85404;
+  --orange-pip: #f76707;
 
   color-scheme: dark;
 }
@@ -442,6 +449,7 @@ input:focus {
 
 /* ----- Tiles ----- */
 .tile {
+  position: relative;
   width: 44px;
   height: 58px;
   background: var(--tile-bg);
@@ -465,17 +473,39 @@ input:focus {
   transform: scale(1.05);
 }
 
+/* Suit shape pip in the top-left corner — a non-colour cue for the suit. */
+.tile-pip {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 0.72rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .tile-red .tile-face {
-  color: var(--tile-red);
+  color: var(--red-ink);
+}
+.tile-red .tile-pip {
+  color: var(--red-pip);
 }
 .tile-blue .tile-face {
-  color: var(--tile-blue);
+  color: var(--blue-ink);
+}
+.tile-blue .tile-pip {
+  color: var(--blue-pip);
 }
 .tile-black .tile-face {
-  color: var(--tile-black);
+  color: var(--black-ink);
+}
+.tile-black .tile-pip {
+  color: var(--black-pip);
 }
 .tile-orange .tile-face {
-  color: var(--tile-orange);
+  color: var(--orange-ink);
+}
+.tile-orange .tile-pip {
+  color: var(--orange-pip);
 }
 .tile-joker {
   background: linear-gradient(135deg, #fde68a, #fca5a5, #93c5fd);
