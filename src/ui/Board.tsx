@@ -31,8 +31,8 @@ import { rackSortKey } from "../game/tiles";
 import { playClack } from "./sounds";
 import { TileView } from "./TileView";
 
-/** Columns in the rack grid; rows grow as a hand gets larger. */
-const COLS = 16;
+/** Rack slots are laid out by CSS (auto-fill), so this is just how many slots
+ * to provide: the hand plus spare room for gaps, with a sensible minimum. */
 const NEW_MELD = "new-meld";
 
 type Slots = (string | null)[];
@@ -56,10 +56,10 @@ const collisionDetection: CollisionDetection = (args) => {
   return closestCorners(args);
 };
 
-/** Enough rows to hold the hand plus at least one spare row, min 3. */
+/** Enough slots to hold the hand plus spare room for gaps. The CSS grid wraps
+ * these to fit whatever width is available, so the count is column-agnostic. */
 function slotCountFor(handSize: number): number {
-  const rows = Math.max(3, Math.ceil((handSize + 1) / COLS));
-  return rows * COLS;
+  return Math.max(21, handSize + Math.max(7, Math.ceil(handSize * 0.4)));
 }
 
 function firstEmpty(slots: Slots, except = -1): number {
@@ -264,7 +264,7 @@ export function Board({
       const oldI = arr.indexOf(activeId);
       if (oldI < 0) return;
       setMelds(pruneEmpty({ ...newMelds, [src.key]: arrayMove(arr, oldI, target.index) }));
-      playClack(0.35);
+      playClack(0.16);
       return;
     }
 
@@ -288,7 +288,7 @@ export function Board({
       }
       setSlots(newSlots);
       if (src.kind === "meld") setMelds(pruneEmpty(newMelds));
-      playClack(0.25); // softer tick for arranging the rack
+      playClack(0.1); // faintest tick for arranging the rack
       return;
     }
 
@@ -297,7 +297,7 @@ export function Board({
       arr.splice(Math.min(target.index, arr.length), 0, activeId);
       setMelds(pruneEmpty(newMelds));
       if (src.kind === "slot") setSlots(newSlots);
-      playClack(0.6); // tile lands on the table
+      playClack(0.22); // tile lands on the table — just a hint
       return;
     }
 
@@ -305,7 +305,7 @@ export function Board({
     newMelds[`meld-${nextMeldId.current++}`] = [activeId];
     setMelds(pruneEmpty(newMelds));
     if (src.kind === "slot") setSlots(newSlots);
-    playClack(0.6);
+    playClack(0.22);
   }
 
   function sortRack() {
@@ -350,7 +350,7 @@ export function Board({
             Sort
           </button>
         </div>
-        <div className="rack-grid" style={{ gridTemplateColumns: `repeat(${COLS}, var(--slot-w))` }}>
+        <div className="rack-grid">
           {slots.map((tileId, i) => (
             <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
           ))}

@@ -11,16 +11,18 @@
   --felt: #14532d;
 
   --tile-bg: #faf7ee;
-  /* Per suit: --*-ink = digit colour, tuned for legibility on the light tile;
-     --*-pip = vivid colour for the corner shape. Suits also differ in
-     lightness so they separate without relying on hue (colour-blind safe). */
-  --red-ink: #c92a2a;
+  /* The digit and the corner pip share one vivid colour per suit so the number
+     matches the icon. Legibility on the light tile comes from a dark outline on
+     the digit (see .tile-face) rather than from darkening the hue. Suits also
+     differ in lightness, and each has a distinct shape pip — so they stay
+     distinguishable without relying on hue (colour-blind safe). */
+  --red-ink: #f03e3e;
   --red-pip: #f03e3e;
-  --blue-ink: #1864ab;
+  --blue-ink: #1c7ed6;
   --blue-pip: #1c7ed6;
-  --black-ink: #212529;
+  --black-ink: #2a3036;
   --black-pip: #343a40;
-  --orange-ink: #a85404;
+  --orange-ink: #f76707;
   --orange-pip: #f76707;
 
   color-scheme: dark;
@@ -434,17 +436,21 @@ input:focus {
   font-size: 0.85rem;
 }
 
-/* Free-form rack: a fixed grid of tile-shaped slots. Tiles can sit in any
-   slot, leaving gaps, so players can group their hand however they like. The
-   grid scrolls horizontally on narrow screens rather than reflowing. */
+/* Free-form rack: tile-shaped slots where tiles can sit anywhere (gaps allowed)
+   so players group their hand however they like. Columns auto-fill to the
+   available width, so it never scrolls sideways — it grows in rows and scrolls
+   vertically if a hand gets large. */
 .rack-grid {
   --slot-w: 46px;
   --slot-h: 62px;
   display: grid;
+  grid-template-columns: repeat(auto-fill, var(--slot-w));
   grid-auto-rows: var(--slot-h);
+  justify-content: center;
   gap: 5px;
-  overflow-x: auto;
-  padding: 4px 2px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 6px 4px;
   background: repeating-linear-gradient(
     90deg,
     #2b3648,
@@ -509,6 +515,14 @@ input:focus {
   font-size: 0.72rem;
   line-height: 1;
   pointer-events: none;
+}
+
+/* The digit uses the vivid suit colour; a thin dark outline (painted behind the
+   fill so it doesn't thin the glyph) keeps even the lighter hues legible on the
+   light tile. */
+.tile-face {
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.42);
+  paint-order: stroke fill;
 }
 
 .tile-red .tile-face {
