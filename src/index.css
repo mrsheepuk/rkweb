@@ -434,8 +434,17 @@ input:focus {
   font-size: 0.85rem;
 }
 
+.rack-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Three physical-style tile rows. Tiles stay on one line per row and the row
+   scrolls horizontally if it overflows, rather than wrapping. */
 .rack-row {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   background: repeating-linear-gradient(
     90deg,
     #2b3648,
@@ -444,7 +453,7 @@ input:focus {
     #26303f 6px
   );
   border-radius: 10px;
-  min-height: 72px;
+  min-height: 66px;
 }
 
 /* ----- Tiles ----- */

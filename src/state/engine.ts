@@ -48,11 +48,13 @@ export function createGame(args: {
 }
 
 export function addPlayer(state: GameState, uid: string, name: string, now: number): GameState {
-  if (state.status !== "lobby") throw new GameError("Game has already started");
   if (state.players[uid]) {
-    // Idempotent re-join (e.g. refresh); just keep the latest name.
+    // Existing players can always rejoin (refresh, reconnect, navigate back) —
+    // even after the game has started; we just refresh their display name.
     return { ...state, players: { ...state.players, [uid]: { ...state.players[uid]!, name } } };
   }
+  // New players can only join while the game is still in the lobby.
+  if (state.status !== "lobby") throw new GameError("This game has already started");
   const seats = Object.keys(state.players).length;
   if (seats >= MAX_PLAYERS) throw new GameError("Game is full");
   const player: PlayerInfo = { uid, name, seat: seats, joinedAt: now };

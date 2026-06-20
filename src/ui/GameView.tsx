@@ -14,8 +14,8 @@ export function GameView({
   onLeave: () => void;
 }) {
   const index = useMemo(() => buildIndex(game), [game.seed]);
-  const handle = useRef<BoardHandle>({ table: game.table, rack: game.hands[me] ?? [], dirty: false });
-  const [resetKey, setResetKey] = useState(0);
+  const handle = useRef<BoardHandle>({ table: game.table, rack: game.hands[me] ?? [] });
+  const [resetNonce, setResetNonce] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +51,7 @@ export function GameView({
 
   function onReset() {
     setError(null);
-    setResetKey((k) => k + 1);
+    setResetNonce((k) => k + 1);
   }
 
   const winner = game.winnerId ? game.players[game.winnerId]?.name : null;
@@ -86,11 +86,12 @@ export function GameView({
       )}
 
       <Board
-        key={resetKey}
-        table={game.table}
-        rack={myRack}
+        committedTable={game.table}
+        hand={myRack}
         index={index}
-        interactive={myTurn}
+        myTurn={myTurn}
+        storageKey={`rummle:rack:${game.id}:${me}`}
+        resetNonce={resetNonce}
         onChange={(h) => (handle.current = h)}
       />
 

@@ -37,6 +37,21 @@ describe("lobby", () => {
   });
 });
 
+describe("rejoin", () => {
+  it("lets an existing player rejoin after the game has started", () => {
+    const g = newTwoPlayerGame();
+    const after = addPlayer(g, "guest", "Bob (back)", 99);
+    expect(after.players["guest"]?.name).toBe("Bob (back)");
+    expect(after.players["guest"]?.seat).toBe(g.players["guest"]?.seat);
+    expect(after.status).toBe("playing");
+  });
+
+  it("blocks a brand-new player from joining a started game", () => {
+    const g = newTwoPlayerGame();
+    expect(() => addPlayer(g, "stranger", "Eve", 99)).toThrow(/already started/i);
+  });
+});
+
 describe("dealing", () => {
   it("deals 14 tiles to each player and conserves the deck", () => {
     const g = newTwoPlayerGame();
