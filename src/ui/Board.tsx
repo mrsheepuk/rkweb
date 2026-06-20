@@ -397,6 +397,8 @@ function MeldRow({
 }) {
   const { setNodeRef } = useDroppable({ id });
   const tiles = items.map((tid) => index.get(tid)).filter(Boolean) as Tile[];
+  // Validity drives the meld border colour; the point total is intentionally
+  // not shown (tallying it is part of play, and it saved board space).
   const analysis = items.length > 0 ? analyzeMeld(tiles) : null;
   const cls = ["meld-row", "meld", analysis && !analysis.valid ? "meld-invalid" : "", analysis?.valid ? "meld-valid" : ""]
     .filter(Boolean)
@@ -411,7 +413,6 @@ function MeldRow({
           return <SortableTile key={tid} id={tid} tile={tile} disabled={tilesDisabled} />;
         })}
       </SortableContext>
-      {analysis && <span className="meld-points">{analysis.valid ? `${analysis.points}` : "✗"}</span>}
     </div>
   );
 }
