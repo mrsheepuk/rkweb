@@ -24,6 +24,9 @@ export function GameView({
   const [error, setError] = useState<string | null>(null);
   const [muted, setMutedState] = useState(isMuted());
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Whether the player has played at least one tile from their hand this turn
+  // (drives which action buttons are enabled).
+  const [hasPlayed, setHasPlayed] = useState(false);
 
   // Watch the active player's in-progress turn (quasi-real-time).
   useEffect(() => {
@@ -178,6 +181,8 @@ export function GameView({
         onChange={(h) => {
           handle.current = h;
           if (myTurn) publishLater(h.table);
+          const rackSet = new Set(h.rack);
+          setHasPlayed((game.hands[me] ?? []).some((id) => !rackSet.has(id)));
         }}
       />
 
@@ -192,10 +197,20 @@ export function GameView({
             <button className="btn" disabled={busy} onClick={onReset}>
               Reset
             </button>
-            <button className="btn" disabled={busy} onClick={onDraw}>
+            <button
+              className="btn"
+              disabled={busy || hasPlayed}
+              title={hasPlayed ? "Reset first if you'd rather draw" : undefined}
+              onClick={onDraw}
+            >
               Draw &amp; pass
             </button>
-            <button className="btn btn-primary" disabled={busy} onClick={onCommit}>
+            <button
+              className="btn btn-primary"
+              disabled={busy || !hasPlayed}
+              title={hasPlayed ? undefined : "Play a tile from your rack to commit"}
+              onClick={onCommit}
+            >
               Commit play
             </button>
           </>
