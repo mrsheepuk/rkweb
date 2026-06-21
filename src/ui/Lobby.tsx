@@ -32,7 +32,7 @@ export function Lobby({
   }
 
   function copyLink() {
-    const url = `${location.origin}${location.pathname}#/g/${game.id}`;
+    const url = `${location.origin}/g/${game.id}`;
     navigator.clipboard?.writeText(url).then(
       () => {
         setCopied(true);
