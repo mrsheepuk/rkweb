@@ -31,6 +31,7 @@ import { analyzeMeld } from "../game/melds";
 import { rackSortKey } from "../game/tiles";
 import { playClack } from "./sounds";
 import { TileView } from "./TileView";
+import { useTileFlip } from "./useTileFlip";
 
 /** Rack slots are laid out by CSS (auto-fill), so this is just how many slots
  * to provide: the hand plus spare room for gaps, with a sensible minimum. */
@@ -359,6 +360,11 @@ export function Board({
     });
   }
 
+  // Animate the table only when spectating: glide opponents' tiles between
+  // melds as their throttled draft snapshots stream in. `committedKey` changes
+  // with each new draft we're mirroring.
+  const tableRef = useTileFlip<HTMLDivElement>(!myTurn, committedKey);
+
   const activeTile = activeId ? index.get(activeId) : null;
   const activeMeld = activeId && activeId in melds ? melds[activeId] ?? null : null;
   const meldKeys = syncOrder(meldOrder, melds).filter((k) => (melds[k] ?? []).length > 0);
@@ -371,7 +377,7 @@ export function Board({
       onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragEnd={handleDragEnd}
     >
-      <div className="table-area">
+      <div className="table-area" ref={tableRef}>
         {meldKeys.length === 0 && <p className="table-empty">No melds on the table yet.</p>}
         <SortableContext items={meldKeys} strategy={rectSortingStrategy}>
           {meldKeys.map((key) => (

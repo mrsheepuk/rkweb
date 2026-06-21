@@ -70,6 +70,10 @@ a Firestore transaction → `onSnapshot` pushes new state back to all clients.
   `commitTurn`. Stamped with `turn` so stale drafts are ignored once play moves
   on; cleared on commit/draw. Needs the `draft` Firestore rule (member-only
   write) — **redeploy `firestore.rules` to prod** for it to work live.
+  Spectators FLIP-animate the table as snapshots arrive (`useTileFlip.ts`,
+  keyed by tile `data-tile-id`, gated to `!myTurn` + `prefers-reduced-motion`);
+  it tweens between published keyframes, not the opponent's live cursor. Exit
+  animations for tiles pulled back to the rack are a known follow-up.
 - **Rejoin works per-browser.** `addPlayer` lets an existing uid rejoin even
   after start (only new players are blocked); the anonymous uid persists in the
   browser, so reopening `/g/CODE` resumes you. Cross-device rejoin would need a
