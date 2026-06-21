@@ -820,6 +820,19 @@ input:focus {
   background: var(--primary-dark);
 }
 
+.btn-action.is-reset {
+  flex: 0 0 auto;
+  padding: 0 1.1rem;
+  background: var(--bg-input);
+  color: var(--text);
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.btn-action.is-reset:hover:not(:disabled) {
+  background: var(--bg-soft);
+}
+
 .game-error {
   text-align: right;
 }

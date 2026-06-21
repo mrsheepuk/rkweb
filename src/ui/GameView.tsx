@@ -242,7 +242,7 @@ export function GameView({
         ) : myTurn ? (
           <>
             {!opened && <span className="open-chip">Open 30+</span>}
-            <button className="btn btn-small" disabled={busy} onClick={onReset}>
+            <button className="btn btn-action is-reset" disabled={busy || !hasPlayed} onClick={onReset}>
               Reset
             </button>
             {hasPlayed ? (
