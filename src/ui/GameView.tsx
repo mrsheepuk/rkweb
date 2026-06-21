@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GameState } from "../state/model";
 import { buildIndex, currentPlayerId } from "../state/engine";
-import { commitTurn, drawTile } from "../sync/gameSync";
+import { commitTurn, drawTile, publishDraft, subscribeDraft, type Draft } from "../sync/gameSync";
+import type { MeldIds } from "../game/rules";
 import { Board, type BoardHandle } from "./Board";
 import { isMuted, playTurnComplete, playWin, setMuted } from "./sounds";
+
+const DRAFT_THROTTLE_MS = 300;
 
 export function GameView({
   game,
@@ -20,6 +23,13 @@ export function GameView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMutedState] = useState(isMuted());
+  const [draft, setDraft] = useState<Draft | null>(null);
+
+  // Watch the active player's in-progress turn (quasi-real-time).
+  useEffect(() => {
+    const unsub = subscribeDraft(game.id, setDraft);
+    return unsub;
+  }, [game.id]);
 
   // Play a chime whenever a turn passes (any player) and a flourish on a win.
   const prevTurn = useRef(game.currentTurn);
@@ -40,7 +50,41 @@ export function GameView({
   const myRack = game.hands[me] ?? [];
   const opened = game.hasOpened[me];
 
+  // When spectating, mirror the active player's live draft (if it's for the
+  // current turn) instead of the committed table.
+  const liveDraft =
+    !myTurn && draft && draft.turn === game.currentTurn && draft.uid === activeId ? draft : null;
+  const boardTable = myTurn ? game.table : liveDraft?.table ?? game.table;
+
+  // Throttle draft publishing to keep writes human-paced, and skip when the
+  // table is unchanged (e.g. the player only rearranged their own rack).
+  const publish = useRef<{ at: number; timer: ReturnType<typeof setTimeout> | null; last: string }>({
+    at: 0,
+    timer: null,
+    last: "",
+  });
+  function publishLater(table: MeldIds[]) {
+    const key = JSON.stringify(table);
+    if (key === publish.current.last) return;
+    publish.current.last = key;
+    if (publish.current.timer) clearTimeout(publish.current.timer);
+    const fire = () => {
+      publish.current.at = Date.now();
+      publish.current.timer = null;
+      void publishDraft(game.id, game.currentTurn, table).catch(() => undefined);
+    };
+    const since = Date.now() - publish.current.at;
+    if (since >= DRAFT_THROTTLE_MS) fire();
+    else publish.current.timer = setTimeout(fire, DRAFT_THROTTLE_MS - since);
+  }
+  function cancelPendingPublish() {
+    if (publish.current.timer) clearTimeout(publish.current.timer);
+    publish.current.timer = null;
+  }
+  useEffect(() => cancelPendingPublish, []);
+
   async function onDraw() {
+    cancelPendingPublish();
     setBusy(true);
     setError(null);
     try {
@@ -53,6 +97,7 @@ export function GameView({
   }
 
   async function onCommit() {
+    cancelPendingPublish();
     setBusy(true);
     setError(null);
     try {
@@ -113,13 +158,16 @@ export function GameView({
       )}
 
       <Board
-        committedTable={game.table}
+        committedTable={boardTable}
         hand={myRack}
         index={index}
         myTurn={myTurn}
         storageKey={`rummle:rack:${game.id}:${me}`}
         resetNonce={resetNonce}
-        onChange={(h) => (handle.current = h)}
+        onChange={(h) => {
+          handle.current = h;
+          if (myTurn) publishLater(h.table);
+        }}
       />
 
       {error && <p className="error game-error">{error}</p>}
@@ -141,7 +189,10 @@ export function GameView({
             </button>
           </>
         ) : (
-          <span className="hint">Waiting for {game.players[activeId ?? ""]?.name ?? "…"}…</span>
+          <span className="hint">
+            {game.players[activeId ?? ""]?.name ?? "…"}
+            {liveDraft ? " is making their move…" : " is thinking…"}
+          </span>
         )}
       </footer>
     </div>

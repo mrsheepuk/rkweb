@@ -61,6 +61,13 @@ a Firestore transaction → `onSnapshot` pushes new state back to all clients.
   Rack rearranging is allowed any time; table edits only on your turn. Uses
   pointer-first collision detection (`pointerWithin` → `rectIntersection` →
   `closestCorners`) — plain `closestCorners` mis-targets large/wrapped zones.
+- **Live draft = quasi-real-time spectating.** The active player publishes their
+  working table to an ephemeral `games/{id}/draft/current` doc on each table
+  change (throttled, table-only, deduped); others mirror it read-only when it's
+  not their turn. Purely advisory — the authoritative move is still
+  `commitTurn`. Stamped with `turn` so stale drafts are ignored once play moves
+  on; cleared on commit/draw. Needs the `draft` Firestore rule (member-only
+  write) — **redeploy `firestore.rules` to prod** for it to work live.
 - **Rejoin works per-browser.** `addPlayer` lets an existing uid rejoin even
   after start (only new players are blocked); the anonymous uid persists in the
   browser, so reopening `#/g/CODE` resumes you. Cross-device rejoin would need a

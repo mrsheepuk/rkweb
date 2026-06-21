@@ -32,5 +32,14 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    // Ephemeral in-progress turn preview (the active player's working table).
+    // Advisory only — never the authoritative state. Any signed-in user can
+    // watch; only a player in the game may write/clear it.
+    match /games/{gameId}/draft/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players[request.auth.uid] != null;
+    }
   }
 }

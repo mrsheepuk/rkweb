@@ -4,6 +4,7 @@
 // keeps hands private) without changing components.
 
 import {
+  deleteDoc,
   doc,
   onSnapshot,
   runTransaction,
@@ -73,6 +74,7 @@ export async function beginGame(id: string): Promise<void> {
 export async function drawTile(id: string): Promise<void> {
   const user = await ensureSignedIn();
   await mutate(id, (state) => applyDraw(state, user.uid, Date.now()));
+  await clearDraft(id);
 }
 
 export async function commitTurn(
@@ -82,6 +84,7 @@ export async function commitTurn(
 ): Promise<void> {
   const user = await ensureSignedIn();
   await mutate(id, (state) => applyCommit(state, user.uid, afterTable, afterRack, Date.now()));
+  await clearDraft(id);
 }
 
 export function subscribeGame(
@@ -99,10 +102,64 @@ export function subscribeGame(
   );
 }
 
+// --- live draft (in-progress turn preview) ---------------------------------
+//
+// While the active player rearranges the table, they publish their working
+// table to an ephemeral draft doc so the others can watch in quasi-real-time.
+// It's purely advisory: the authoritative move is still the validated
+// `commitTurn` transaction. Stamped with the turn so stale drafts (e.g. after a
+// disconnect) are ignored once play moves on; cleared on commit/draw.
+
+interface StoredDraft {
+  uid: string;
+  turn: number;
+  table: { tiles: string[] }[];
+}
+
+export interface Draft {
+  uid: string;
+  turn: number;
+  table: MeldIds[];
+}
+
+export async function publishDraft(id: string, turn: number, table: MeldIds[]): Promise<void> {
+  const user = await ensureSignedIn();
+  await setDoc(draftRef(id), {
+    uid: user.uid,
+    turn,
+    table: table.map((tiles) => ({ tiles })),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function clearDraft(id: string): Promise<void> {
+  try {
+    await deleteDoc(draftRef(id));
+  } catch {
+    /* best-effort cleanup */
+  }
+}
+
+export function subscribeDraft(id: string, onChange: (draft: Draft | null) => void): () => void {
+  return onSnapshot(
+    draftRef(id),
+    (snap) => {
+      if (!snap.exists()) return onChange(null);
+      const d = snap.data() as StoredDraft;
+      onChange({ uid: d.uid, turn: d.turn, table: (d.table ?? []).map((m) => m.tiles) });
+    },
+    () => onChange(null),
+  );
+}
+
 // --- internals -------------------------------------------------------------
 
 function gameRef(id: string) {
   return doc(db, COLLECTION, id);
+}
+
+function draftRef(id: string) {
+  return doc(db, COLLECTION, id, "draft", "current");
 }
 
 /** Reads, transforms with a pure engine function, and writes atomically. */
