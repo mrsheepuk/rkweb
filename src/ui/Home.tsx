@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { APP_NAME, APP_TAGLINE, NAME_KEY } from "../constants";
 import { createNewGame, joinGame } from "../sync/gameSync";
-import { normalizeCode } from "../sync/codes";
+import { CODE_LENGTH, normalizeCode } from "../sync/codes";
 
 export function Home({ onEnterGame }: { onEnterGame: (id: string) => void }) {
   const [name, setName] = useState(localStorage.getItem(NAME_KEY) ?? "");
@@ -70,8 +70,8 @@ export function Home({ onEnterGame }: { onEnterGame: (id: string) => void }) {
           <input
             className="code-input"
             value={code}
-            placeholder="ABCD"
-            maxLength={4}
+            placeholder={"ABCDEFGHIJ".slice(0, CODE_LENGTH)}
+            maxLength={CODE_LENGTH}
             onChange={(e) => setCode(normalizeCode(e.target.value))}
           />
           <button className="btn" disabled={busy} onClick={handleJoin}>
