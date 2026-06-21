@@ -4,7 +4,7 @@ import { buildIndex, currentPlayerId } from "../state/engine";
 import { commitTurn, drawTile, publishDraft, subscribeDraft, type Draft } from "../sync/gameSync";
 import type { MeldIds } from "../game/rules";
 import { Board, type BoardHandle } from "./Board";
-import { isMuted, playTurnComplete, playWin, setMuted } from "./sounds";
+import { isMuted, playRemoteTick, playTurnComplete, playWin, setMuted } from "./sounds";
 
 const DRAFT_THROTTLE_MS = 300;
 
@@ -55,6 +55,17 @@ export function GameView({
   const liveDraft =
     !myTurn && draft && draft.turn === game.currentTurn && draft.uid === activeId ? draft : null;
   const boardTable = myTurn ? game.table : liveDraft?.table ?? game.table;
+
+  // Faint pip whenever a spectated move streams in (not on first appearance,
+  // and not on commits — those get the turn chime).
+  const liveKey = liveDraft ? JSON.stringify(liveDraft.table) : null;
+  const prevLiveKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (liveKey !== null && prevLiveKey.current !== null && prevLiveKey.current !== liveKey) {
+      playRemoteTick();
+    }
+    prevLiveKey.current = liveKey;
+  }, [liveKey]);
 
   // Throttle draft publishing to keep writes human-paced, and skip when the
   // table is unchanged (e.g. the player only rearranged their own rack).

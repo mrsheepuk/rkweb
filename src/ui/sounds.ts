@@ -100,6 +100,29 @@ export function playTurnComplete(): void {
   chime([523.25, 659.25], 0.11, 0.22); // C5 -> E5
 }
 
+/**
+ * A very soft, clean "pip" for an opponent's move arriving over the wire —
+ * distinct from the woody tile clack, and ~30% of its volume so it's just a
+ * hint that something moved.
+ */
+export function playRemoteTick(): void {
+  if (muted) return;
+  const ac = getCtx();
+  if (!ac) return;
+  const now = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(740, now);
+  osc.frequency.exponentialRampToValueAtTime(900, now + 0.03);
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.07, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+  osc.connect(gain).connect(ac.destination);
+  osc.start(now);
+  osc.stop(now + 0.1);
+}
+
 /** A brighter four-note flourish for a win. */
 export function playWin(): void {
   chime([523.25, 659.25, 783.99, 1046.5], 0.1, 0.28); // C E G C
