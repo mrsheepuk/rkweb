@@ -30,7 +30,9 @@ stays unit-tested and could move server-side later:
   - `firebase.ts` init + emulator wiring · `gameSync.ts` create/join/start/draw/
     commit via Firestore **transactions** + `subscribeGame` (onSnapshot) ·
     `codes.ts` join-code generator.
-- `src/ui/` — React. `App.tsx` routes via `useHashRoute` (`#/g/CODE`).
+- `src/ui/` — React. `App.tsx` routes via `useRoute` (history paths, `/g/CODE`;
+  needs the host to serve index.html for any path — see `firebase.json`
+  rewrites. Old `#/g/CODE` links are auto-migrated).
   `Home` → `Lobby` → `GameView`; `Board.tsx` is the dnd-kit play surface.
   `TileView.tsx` renders tiles · `sounds.ts` Web-Audio SFX · `useAuth`/`useGame`
   hooks subscribe to auth + the game doc.
@@ -68,9 +70,13 @@ a Firestore transaction → `onSnapshot` pushes new state back to all clients.
   `commitTurn`. Stamped with `turn` so stale drafts are ignored once play moves
   on; cleared on commit/draw. Needs the `draft` Firestore rule (member-only
   write) — **redeploy `firestore.rules` to prod** for it to work live.
+  Spectators FLIP-animate the table as snapshots arrive (`useTileFlip.ts`,
+  keyed by tile `data-tile-id`, gated to `!myTurn` + `prefers-reduced-motion`);
+  it tweens between published keyframes, not the opponent's live cursor. Exit
+  animations for tiles pulled back to the rack are a known follow-up.
 - **Rejoin works per-browser.** `addPlayer` lets an existing uid rejoin even
   after start (only new players are blocked); the anonymous uid persists in the
-  browser, so reopening `#/g/CODE` resumes you. Cross-device rejoin would need a
+  browser, so reopening `/g/CODE` resumes you. Cross-device rejoin would need a
   portable player token (not done).
 - **Tiles must not rely on colour alone** (a player is colour-blind). Each suit
   has a distinct shape pip (● blue ▲ red ◆ orange ■ black) plus a

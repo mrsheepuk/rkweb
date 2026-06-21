@@ -16,6 +16,7 @@ export function TileView({ tile, dragging }: { tile: Tile; dragging?: boolean })
     return (
       <div
         className={`tile tile-joker${dragging ? " tile-dragging" : ""}`}
+        data-tile-id={tile.id}
         aria-label="joker"
       >
         <span className="tile-face">★</span>
@@ -25,6 +26,7 @@ export function TileView({ tile, dragging }: { tile: Tile; dragging?: boolean })
   return (
     <div
       className={`tile tile-${tile.color}${dragging ? " tile-dragging" : ""}`}
+      data-tile-id={tile.id}
       data-color={tile.color}
       aria-label={`${tile.color} ${tile.value}`}
     >

@@ -28,6 +28,16 @@ export function GameView({
   // (drives which action buttons are enabled).
   const [hasPlayed, setHasPlayed] = useState(false);
 
+  // Reset at every turn boundary. `hasPlayed` is otherwise only recomputed when
+  // the Board reports a layout change; if the board happens to be byte-identical
+  // across a turn change (e.g. an opponent's committed table matches the draft
+  // we were spectating) that report never fires and a stale `true` would leave
+  // "Draw & pass" wrongly disabled until a reload. Resetting here is always safe
+  // — nothing is played at the start of a turn.
+  useEffect(() => {
+    setHasPlayed(false);
+  }, [game.currentTurn]);
+
   // Watch the active player's in-progress turn (quasi-real-time).
   useEffect(() => {
     const unsub = subscribeDraft(game.id, setDraft);

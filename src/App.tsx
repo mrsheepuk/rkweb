@@ -1,13 +1,13 @@
 import { APP_NAME } from "./constants";
 import { useAuth } from "./ui/useAuth";
 import { useGame } from "./ui/useGame";
-import { useHashRoute } from "./ui/useHashRoute";
+import { useRoute } from "./ui/useRoute";
 import { Home } from "./ui/Home";
 import { Lobby } from "./ui/Lobby";
 import { GameView } from "./ui/GameView";
 
 export function App() {
-  const { gameId, goToGame, goHome } = useHashRoute();
+  const { gameId, goToGame, goHome } = useRoute();
   const { user, loading: authLoading, error: authError } = useAuth();
   const { game, loading: gameLoading, error: gameError } = useGame(gameId);
 
