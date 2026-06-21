@@ -65,11 +65,23 @@ export function addPlayer(state: GameState, uid: string, name: string, now: numb
   };
 }
 
-/** Deals starting racks from a freshly shuffled, seed-derived deck. */
-export function startGame(state: GameState, now: number): GameState {
+/**
+ * Deals starting racks from a freshly shuffled, seed-derived deck.
+ *
+ * `allowSolo` drops the 2-player minimum so a single host can start a game on
+ * their own. It's a test affordance (hidden behind a query param in the UI):
+ * with one seat, `nextTurn` loops straight back to you, so draw/commit/open/win
+ * all exercise normally without an opponent.
+ */
+export function startGame(
+  state: GameState,
+  now: number,
+  opts: { allowSolo?: boolean } = {},
+): GameState {
   if (state.status !== "lobby") throw new GameError("Game already started");
   const players = Object.values(state.players).sort((a, b) => a.seat - b.seat);
-  if (players.length < MIN_PLAYERS) throw new GameError("Need at least 2 players");
+  const min = opts.allowSolo ? 1 : MIN_PLAYERS;
+  if (players.length < min) throw new GameError(`Need at least ${min} player${min > 1 ? "s" : ""}`);
 
   const deck = shuffledDeck(mulberry32(state.seed));
   const hands: Record<string, string[]> = {};

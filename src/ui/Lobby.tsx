@@ -17,13 +17,16 @@ export function Lobby({
 
   const players = Object.values(game.players).sort((a, b) => a.seat - b.seat);
   const isHost = game.hostId === me;
-  const canStart = players.length >= MIN_PLAYERS;
+  // `?test` unlocks a solo start so you can try the game on your own without a
+  // second browser. Hidden by default — see CLAUDE.md / engine `allowSolo`.
+  const testMode = new URLSearchParams(location.search).has("test");
+  const canStart = players.length >= (testMode ? 1 : MIN_PLAYERS);
 
   async function start() {
     setBusy(true);
     setError(null);
     try {
-      await beginGame(game.id);
+      await beginGame(game.id, { allowSolo: testMode });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start game");
     } finally {
@@ -74,7 +77,11 @@ export function Lobby({
 
         {isHost ? (
           <button className="btn btn-primary" disabled={!canStart || busy} onClick={start}>
-            {canStart ? "Start game" : `Need ${MIN_PLAYERS}+ players`}
+            {!canStart
+              ? `Need ${MIN_PLAYERS}+ players`
+              : testMode && players.length < MIN_PLAYERS
+                ? "Start solo (test)"
+                : "Start game"}
           </button>
         ) : (
           <p className="hint">Waiting for the host to start…</p>

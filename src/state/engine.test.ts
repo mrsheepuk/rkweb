@@ -35,6 +35,18 @@ describe("lobby", () => {
     const g = createGame({ id: "ABCD", hostId: "h", hostName: "A", seed: 1, now: 1 });
     expect(() => startGame(g, 2)).toThrow(GameError);
   });
+
+  it("allows a solo start in test mode and loops the turn back to the host", () => {
+    const g = createGame({ id: "ABCD", hostId: "host", hostName: "A", seed: 1, now: 1 });
+    const started = startGame(g, 2, { allowSolo: true });
+    expect(started.status).toBe("playing");
+    expect(started.turnOrder).toEqual(["host"]);
+    expect(started.hands["host"]).toHaveLength(STARTING_RACK_SIZE);
+    // After drawing, it's still the host's turn (single-seat loop).
+    const after = applyDraw(started, "host", 3);
+    expect(currentPlayerId(after)).toBe("host");
+    expect(after.hands["host"]).toHaveLength(STARTING_RACK_SIZE + 1);
+  });
 });
 
 describe("rejoin", () => {
