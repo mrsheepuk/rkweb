@@ -7,7 +7,9 @@ import { customAlphabet } from "nanoid";
 // check in createNewGame, that stays collision-free well past any realistic
 // number of games (we never reclaim codes).
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const makeCode = customAlphabet(ALPHABET, 5);
+/** Length of a join code. Exported so the UI input stays in sync. */
+export const CODE_LENGTH = 5;
+const makeCode = customAlphabet(ALPHABET, CODE_LENGTH);
 
 export function newGameCode(): string {
   return makeCode();
