@@ -28,7 +28,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { Tile } from "../game/types";
 import type { MeldIds } from "../game/rules";
 import { analyzeMeld } from "../game/melds";
-import { rackSortKey } from "../game/tiles";
+import { rackSortByNumberKey, rackSortKey } from "../game/tiles";
 import { playClack } from "./sounds";
 import { TileView } from "./TileView";
 import { useTileFlip } from "./useTileFlip";
@@ -59,9 +59,12 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 /** Enough slots to hold the hand plus spare room for gaps. The CSS grid wraps
- * these to fit whatever width is available, so the count is column-agnostic. */
-function slotCountFor(handSize: number): number {
-  return Math.max(21, handSize + Math.max(7, Math.ceil(handSize * 0.4)));
+ * these to fit whatever width is available; we round the count up to a whole
+ * number of rows for the columns currently shown (`cols`) so the last row is
+ * always complete — every slot the player can see is one they can drop into. */
+function slotCountFor(handSize: number, cols = 0): number {
+  const base = Math.max(21, handSize + Math.max(7, Math.ceil(handSize * 0.4)));
+  return cols > 0 ? Math.ceil(base / cols) * cols : base;
 }
 
 function firstEmpty(slots: Slots, except = -1): number {
@@ -71,30 +74,46 @@ function firstEmpty(slots: Slots, except = -1): number {
 
 /**
  * Keeps each tile in the slot the player put it in (preserving gaps), drops
- * tiles no longer in hand, and drops genuinely new tiles (drawn) into the
- * first free slots. This is what lets a player's free-form rack layout persist
- * across turns and reloads.
+ * tiles no longer in hand, and places genuinely new tiles (drawn) in the first
+ * free slot *after the last tile in the rack* so a freshly drawn tile is easy
+ * to spot. This is what lets a player's free-form rack layout persist across
+ * turns and reloads.
  */
 function reconcileSlots(prev: Slots, wanted: string[], len: number): Slots {
   const want = new Set(wanted);
   const placed = new Set<string>();
   const slots: Slots = [];
+  let lastFilled = -1;
   for (let i = 0; i < len; i++) {
     const id = prev[i] ?? null;
     if (id && want.has(id) && !placed.has(id)) {
       slots[i] = id;
       placed.add(id);
+      lastFilled = i;
     } else {
       slots[i] = null;
     }
   }
-  let cursor = 0;
-  for (const id of wanted) {
-    if (placed.has(id)) continue;
+  // Drawn tiles slot in just past the last occupied position…
+  const newcomers = wanted.filter((id) => !placed.has(id));
+  let cursor = lastFilled + 1;
+  for (const id of newcomers) {
     while (cursor < len && slots[cursor] !== null) cursor++;
     if (cursor < len) {
       slots[cursor] = id;
       placed.add(id);
+    }
+  }
+  // …falling back to earlier gaps only if we ran out of room at the end.
+  if (placed.size < want.size) {
+    let early = 0;
+    for (const id of wanted) {
+      if (placed.has(id)) continue;
+      while (early < len && slots[early] !== null) early++;
+      if (early < len) {
+        slots[early] = id;
+        placed.add(id);
+      }
     }
   }
   return slots;
@@ -152,6 +171,7 @@ export function Board({
   storageKey,
   resetNonce,
   sortNonce,
+  sortMode,
   onChange,
 }: {
   committedTable: MeldIds[];
@@ -161,10 +181,17 @@ export function Board({
   storageKey: string;
   resetNonce: number;
   sortNonce: number;
+  sortMode: "color" | "number";
   onChange: (handle: BoardHandle) => void;
 }) {
   const committedKey = useMemo(() => JSON.stringify(committedTable), [committedTable]);
   const handKey = useMemo(() => JSON.stringify(hand), [hand]);
+
+  // How many columns the rack grid is currently showing. Measured from the DOM
+  // (the grid uses CSS auto-fill) so we can keep the slot count a whole multiple
+  // of it — see `slotCountFor` and the re-pad effect below.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState(0);
 
   const [slots, setSlots] = useState<Slots>(() =>
     reconcileSlots(loadSlots(storageKey) ?? [], hand, slotCountFor(hand.length)),
@@ -206,13 +233,39 @@ export function Board({
       setMeldOrder(committedTable.map((_, i) => `meld-${i}`));
       nextMeldId.current = committedTable.length;
     }
-    setSlots(reconcileSlots(slotsRef.current, wanted, slotCountFor(hand.length)));
+    setSlots(reconcileSlots(slotsRef.current, wanted, slotCountFor(hand.length, cols)));
 
     prevMyTurn.current = myTurn;
     prevReset.current = resetNonce;
     prevCommitted.current = committedKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myTurn, committedKey, handKey, resetNonce]);
+
+  // Track the grid's column count (CSS auto-fill, so it depends on width). The
+  // computed `grid-template-columns` expands to one entry per generated track.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const measure = () => {
+      const tmpl = getComputedStyle(grid).gridTemplateColumns;
+      const n = tmpl ? tmpl.split(" ").filter(Boolean).length : 0;
+      setCols((c) => (n > 0 && n !== c ? n : c));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, []);
+
+  // Re-pad the rack to a whole number of rows whenever the column count changes,
+  // keeping every placed tile where it is.
+  useEffect(() => {
+    if (cols <= 0) return;
+    setSlots((prev) =>
+      reconcileSlots(prev, prev.filter((s): s is string => s !== null), slotCountFor(hand.length, cols)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cols]);
 
   const slotsKey = slots.map((s) => s ?? "").join("|");
   const meldsKey = JSON.stringify(melds);
@@ -359,12 +412,13 @@ export function Board({
   }, [sortNonce]);
 
   function sortRack() {
+    const keyFn = sortMode === "number" ? rackSortByNumberKey : rackSortKey;
     setSlots((prev) => {
       const ids = prev.filter((s): s is string => s !== null);
       ids.sort((a, b) => {
         const ta = index.get(a);
         const tb = index.get(b);
-        return ta && tb ? rackSortKey(ta) - rackSortKey(tb) : 0;
+        return ta && tb ? keyFn(ta) - keyFn(tb) : 0;
       });
       const next: Slots = Array.from({ length: prev.length }, (_, i) => ids[i] ?? null);
       return next;
@@ -398,7 +452,7 @@ export function Board({
       </div>
 
       <div className="rack-area">
-        <div className="rack-grid">
+        <div className="rack-grid" ref={gridRef}>
           {slots.map((tileId, i) => (
             <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
           ))}
@@ -506,8 +560,13 @@ function SortableTile({ id, tile, disabled }: { id: string; tile: Tile; disabled
 function NewMeldDrop() {
   const { setNodeRef, isOver } = useDroppable({ id: NEW_MELD });
   return (
-    <div ref={setNodeRef} className={`new-meld-drop${isOver ? " over" : ""}`}>
-      Drop here to start a new meld
+    <div
+      ref={setNodeRef}
+      className={`new-meld-drop${isOver ? " over" : ""}`}
+      aria-label="Start a new meld"
+      title="Drop here to start a new meld"
+    >
+      <span aria-hidden="true">+</span>
     </div>
   );
 }

@@ -1,5 +1,25 @@
 import { useLayoutEffect, useRef } from "react";
 
+/** How long a moved/entered tile keeps its highlight before it has fully faded. */
+const HIGHLIGHT_MS = 5000;
+
+/**
+ * Lingering highlight so a spectator can see what changed. It's a separate,
+ * long Web Animation (not part of the brief glide) that keeps fading on its
+ * own — so several tiles can be mid-fade at once and earlier moves stay visible
+ * as new ones arrive. Outline (not box-shadow) so it doesn't clobber the tile's
+ * own resting shadow, and it reverts cleanly when the fade ends.
+ */
+function highlight(node: HTMLElement) {
+  node.animate(
+    [
+      { outline: "3px solid rgba(255, 224, 130, 0.95)", outlineOffset: "1px" },
+      { outline: "3px solid rgba(255, 224, 130, 0)", outlineOffset: "1px" },
+    ],
+    { duration: HIGHLIGHT_MS, easing: "linear" },
+  );
+}
+
 /**
  * FLIP animation for table tiles when an opponent's move streams in.
  *
@@ -47,20 +67,23 @@ export function useTileFlip<T extends HTMLElement>(enabled: boolean, key: string
             ],
             { duration: 180, easing: "ease-out" },
           );
+          highlight(node);
           continue;
         }
         const dx = old.left - now.left;
         const dy = old.top - now.top;
         if (dx || dy) {
-          // Moving: glide from the previous slot, with a brief highlight so the
-          // eye catches what changed.
+          // Moving: glide from the previous slot, then leave a slow-fading
+          // highlight (see `highlight`) so the eye can follow what changed even
+          // as later moves stream in.
           node.animate(
             [
-              { transform: `translate(${dx}px, ${dy}px)`, boxShadow: "0 0 0 2px rgba(255,255,255,0.6)" },
-              { transform: "translate(0, 0)", boxShadow: "0 0 0 0 rgba(255,255,255,0)" },
+              { transform: `translate(${dx}px, ${dy}px)` },
+              { transform: "translate(0, 0)" },
             ],
             { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
           );
+          highlight(node);
         }
       }
     }
