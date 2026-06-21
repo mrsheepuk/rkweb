@@ -48,6 +48,16 @@ export interface BoardHandle {
 const isMeldKey = (k: string) => k.startsWith("meld-");
 const meldNum = (k: string) => Number(k.slice(5));
 
+/** True when the dragged tile's centre has crossed past the centre of the tile
+ * it was dropped on — i.e. it should land to the *right* of that tile, not the
+ * left. Lets you drop onto the right half of the last tile to append. */
+function droppedAfter(e: DragEndEvent): boolean {
+  const over = e.over?.rect;
+  const active = e.active.rect.current.translated;
+  if (!over || !active) return false;
+  return active.left + active.width / 2 > over.left + over.width / 2;
+}
+
 // Prefer the slot/zone directly under the pointer, then any it overlaps, then
 // nearest corner. Keeps drops accurate for both small slots and large zones.
 const collisionDetection: CollisionDetection = (args) => {
@@ -316,13 +326,15 @@ export function Board({
     return null;
   }
 
-  function classifyOver(overId: string): Target | null {
+  function classifyOver(overId: string, after: boolean): Target | null {
     if (overId.startsWith("slot-")) return { kind: "slot", index: Number(overId.slice(5)) };
     if (overId === NEW_MELD) return { kind: "newmeld" };
     if (overId in melds) return { kind: "meld", key: overId, index: (melds[overId] ?? []).length };
     for (const k of Object.keys(melds)) {
       const i = (melds[k] ?? []).indexOf(overId);
-      if (i >= 0) return { kind: "meld", key: k, index: i };
+      // Drop on the right half of a tile to land after it, left half to land
+      // before — otherwise you can never reach the slot past the last tile.
+      if (i >= 0) return { kind: "meld", key: k, index: i + (after ? 1 : 0) };
     }
     const si = slots.indexOf(overId);
     if (si >= 0) return { kind: "slot", index: si };
@@ -359,7 +371,7 @@ export function Board({
     }
 
     const src = locate(activeId);
-    const target = classifyOver(overId);
+    const target = classifyOver(overId, droppedAfter(e));
     if (!src || !target) return;
 
     // Off-turn, only rack rearranging (slot ↔ slot) is allowed.
@@ -370,12 +382,17 @@ export function Board({
     const newMelds: Melds = {};
     for (const k of Object.keys(melds)) newMelds[k] = melds[k]!.slice();
 
-    // Reorder within the same meld.
+    // Reorder within the same meld. target.index is a position in the array as
+    // it stands (active still present); removing active first shifts everything
+    // after it down one, so adjust the insert point accordingly.
     if (src.kind === "meld" && target.kind === "meld" && src.key === target.key) {
       const arr = newMelds[src.key]!;
       const oldI = arr.indexOf(activeId);
       if (oldI < 0) return;
-      commitMelds({ ...newMelds, [src.key]: arrayMove(arr, oldI, target.index) });
+      arr.splice(oldI, 1);
+      const to = target.index > oldI ? target.index - 1 : target.index;
+      arr.splice(Math.min(Math.max(to, 0), arr.length), 0, activeId);
+      commitMelds({ ...newMelds, [src.key]: arr });
       playClack(0.16);
       return;
     }
