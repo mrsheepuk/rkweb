@@ -31,13 +31,25 @@ function highlight(node: HTMLElement) {
  * appeared fade/scale in. Uses the Web Animations API so it composes on top of
  * React/dnd-kit inline transforms without clobbering them.
  *
+ * The lingering highlight is gated on `signatures` (a per-tile fingerprint of
+ * its position *within its group*, e.g. its left neighbour) rather than raw
+ * pixel movement: adding a tile to one group reflows the table and slides other
+ * groups around, but those tiles weren't actually changed — they still glide,
+ * but only genuinely-involved tiles (new, or whose group context changed) light
+ * up.
+ *
  * Returns a ref to attach to the container whose `[data-tile-id]` descendants
- * should animate. Pass `enabled` (we only animate while spectating) and a `key`
- * that changes whenever the board content does.
+ * should animate. Pass `enabled` (we only animate while spectating), a `key`
+ * that changes whenever the board content does, and the signature map.
  */
-export function useTileFlip<T extends HTMLElement>(enabled: boolean, key: string) {
+export function useTileFlip<T extends HTMLElement>(
+  enabled: boolean,
+  key: string,
+  signatures: Map<string, string>,
+) {
   const containerRef = useRef<T>(null);
   const prev = useRef<Map<string, DOMRect>>(new Map());
+  const prevSig = useRef<Map<string, string>>(new Map());
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -58,6 +70,10 @@ export function useTileFlip<T extends HTMLElement>(enabled: boolean, key: string
         const id = node.dataset.tileId!;
         const now = next.get(id)!;
         const old = prev.current.get(id);
+        // "Involved" in the change: new on the table, or its group context
+        // (left neighbour) changed. A tile merely shoved by reflow keeps its
+        // context, so it glides but doesn't light up.
+        const affected = !old || prevSig.current.get(id) !== signatures.get(id);
         if (!old) {
           // Entering: a tile the opponent just laid on the table.
           node.animate(
@@ -67,28 +83,30 @@ export function useTileFlip<T extends HTMLElement>(enabled: boolean, key: string
             ],
             { duration: 180, easing: "ease-out" },
           );
-          highlight(node);
-          continue;
+        } else {
+          const dx = old.left - now.left;
+          const dy = old.top - now.top;
+          if (dx || dy) {
+            // Glide from the previous slot — even for reflow-pushed tiles, so
+            // groups slide smoothly.
+            node.animate(
+              [
+                { transform: `translate(${dx}px, ${dy}px)` },
+                { transform: "translate(0, 0)" },
+              ],
+              { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+            );
+          }
         }
-        const dx = old.left - now.left;
-        const dy = old.top - now.top;
-        if (dx || dy) {
-          // Moving: glide from the previous slot, then leave a slow-fading
-          // highlight (see `highlight`) so the eye can follow what changed even
-          // as later moves stream in.
-          node.animate(
-            [
-              { transform: `translate(${dx}px, ${dy}px)` },
-              { transform: "translate(0, 0)" },
-            ],
-            { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
-          );
-          highlight(node);
-        }
+        // Slow-fading highlight (see `highlight`) so the eye can follow what
+        // actually changed even as later moves stream in.
+        if (affected) highlight(node);
       }
     }
 
     prev.current = next;
+    prevSig.current = signatures;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled]);
 
   return containerRef;

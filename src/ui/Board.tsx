@@ -452,13 +452,25 @@ export function Board({
     });
   }
 
+  // Per-tile fingerprint of its position within its group (its left neighbour,
+  // "" if first). Drives the spectator highlight: a tile whose context is
+  // unchanged was only shoved by reflow, so it glides without lighting up.
+  const tileSignatures = useMemo(() => {
+    const sig = new Map<string, string>();
+    for (const arr of Object.values(melds)) {
+      arr.forEach((id, i) => sig.set(id, i > 0 ? arr[i - 1]! : ""));
+    }
+    return sig;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meldsKey]);
+
   // Animate the table only when spectating: glide opponents' tiles between
   // melds as their throttled draft snapshots stream in. Key on the *rendered*
   // table (`melds`/`meldOrder`), not the incoming `committedTable` prop — for a
   // spectator `melds` is reseeded from the draft a render later (in the sync
   // effect), so keying on the prop measures the DOM one draft behind and lights
   // up the previously dropped tile instead of the current one.
-  const tableRef = useTileFlip<HTMLDivElement>(!myTurn, `${meldsKey}|${orderKey}`);
+  const tableRef = useTileFlip<HTMLDivElement>(!myTurn, `${meldsKey}|${orderKey}`, tileSignatures);
 
   const activeTile = activeId ? index.get(activeId) : null;
   const activeMeld = activeId && activeId in melds ? melds[activeId] ?? null : null;
