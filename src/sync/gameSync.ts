@@ -67,8 +67,8 @@ export async function joinGame(code: string, name: string): Promise<string> {
   return id;
 }
 
-export async function beginGame(id: string): Promise<void> {
-  await mutate(id, (state) => startGame(state, Date.now()));
+export async function beginGame(id: string, opts: { allowSolo?: boolean } = {}): Promise<void> {
+  await mutate(id, (state) => startGame(state, Date.now(), opts));
 }
 
 export async function drawTile(id: string): Promise<void> {
