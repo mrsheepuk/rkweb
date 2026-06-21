@@ -242,15 +242,13 @@ export function GameView({
         ) : myTurn ? (
           <>
             {!opened && <span className="open-chip">Open 30+</span>}
+            <button className="btn btn-small" disabled={busy} onClick={onReset}>
+              Reset
+            </button>
             {hasPlayed ? (
-              <>
-                <button className="btn btn-small" disabled={busy} onClick={onReset}>
-                  Reset
-                </button>
-                <button className="btn btn-action is-commit" disabled={busy} onClick={onCommit}>
-                  Commit play
-                </button>
-              </>
+              <button className="btn btn-action is-commit" disabled={busy} onClick={onCommit}>
+                Commit play
+              </button>
             ) : (
               <button className="btn btn-action is-draw" disabled={busy} onClick={onDraw}>
                 Draw &amp; pass
