@@ -195,18 +195,6 @@ export function GameView({
                   <button
                     className="menu-item"
                     role="menuitem"
-                    disabled={!myTurn || !hasPlayed}
-                    onClick={() => {
-                      onReset();
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <span className="menu-ico" aria-hidden="true">↺</span>
-                    Reset play
-                  </button>
-                  <button
-                    className="menu-item"
-                    role="menuitem"
                     onClick={() => {
                       toggleMute();
                       setMenuOpen(false);
@@ -255,9 +243,14 @@ export function GameView({
           <>
             {!opened && <span className="open-chip">Open 30+</span>}
             {hasPlayed ? (
-              <button className="btn btn-action is-commit" disabled={busy} onClick={onCommit}>
-                Commit play
-              </button>
+              <>
+                <button className="btn btn-small" disabled={busy} onClick={onReset}>
+                  Reset
+                </button>
+                <button className="btn btn-action is-commit" disabled={busy} onClick={onCommit}>
+                  Commit play
+                </button>
+              </>
             ) : (
               <button className="btn btn-action is-draw" disabled={busy} onClick={onDraw}>
                 Draw &amp; pass
