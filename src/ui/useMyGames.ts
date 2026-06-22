@@ -25,7 +25,12 @@ export function useMyGames(uid: string | null): MyGames {
         setLoading(false);
       },
       // A failed list is non-fatal: the player can still create/join by code.
-      () => setLoading(false),
+      // Still log it — a swallowed list error (e.g. a missing composite index)
+      // is invisible otherwise, and Firestore's message includes a fix link.
+      (err) => {
+        console.error("[useMyGames] subscribeMyGames failed:", err);
+        setLoading(false);
+      },
     );
     return unsub;
   }, [uid]);
