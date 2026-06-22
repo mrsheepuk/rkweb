@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { subscribeMyGames, type GameSummary } from "../sync/gameSync";
 
-export interface MyGames {
+export interface MyGamesState {
   games: GameSummary[];
   loading: boolean;
 }
 
 /** Live-subscribes to every game the signed-in player belongs to. */
-export function useMyGames(uid: string | null): MyGames {
+export function useMyGames(uid: string | null): MyGamesState {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(!!uid);
 

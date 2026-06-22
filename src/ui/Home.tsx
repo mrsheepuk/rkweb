@@ -83,7 +83,7 @@ export function Home({ uid, onEnterGame }: { uid: string; onEnterGame: (id: stri
         {error && <p className="error">{error}</p>}
       </div>
 
-      <MyGames uid={uid} currentId={null} onOpen={onEnterGame} />
+      <MyGames uid={uid} onOpen={onEnterGame} />
 
       <footer className="home-footer">
         <p>Anonymous play — just pick a name and share the code.</p>

@@ -14,11 +14,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 export function MyGames({
   uid,
-  currentId,
   onOpen,
 }: {
   uid: string;
-  currentId: string | null;
   onOpen: (id: string) => void;
 }) {
   const { games, loading } = useMyGames(uid);
@@ -36,7 +34,7 @@ export function MyGames({
       <h2>Your games</h2>
       <ul className="games-list">
         {shown.map((g) => (
-          <GameCard key={g.id} game={g} isCurrent={g.id === currentId} onOpen={onOpen} />
+          <GameCard key={g.id} game={g} onOpen={onOpen} />
         ))}
       </ul>
       {older.length > 0 && (
@@ -50,11 +48,9 @@ export function MyGames({
 
 function GameCard({
   game,
-  isCurrent,
   onOpen,
 }: {
   game: GameSummary;
-  isCurrent: boolean;
   onOpen: (id: string) => void;
 }) {
   const status = describeStatus(game);
@@ -70,9 +66,7 @@ function GameCard({
         </span>
         <span className="game-card-meta">
           <span className={`badge ${status.className}`}>{status.label}</span>
-          <span className="game-card-time">
-            {isCurrent ? "Open" : relativeTime(game.updatedAtMs)}
-          </span>
+          <span className="game-card-time">{relativeTime(game.updatedAtMs)}</span>
         </span>
       </button>
     </li>
