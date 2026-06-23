@@ -674,6 +674,131 @@ input:focus {
   border-radius: 14px;
 }
 
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.5rem 0.8rem;
+  border-radius: 12px;
+}
+
+.offline-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offline-dot {
+    animation: none;
+  }
+}
+
+/* ----- Debug overlay (only when ?debug=1) ----- */
+.dbg-fab {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  z-index: 9999;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-input);
+  color: var(--text);
+}
+
+.dbg-panel {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  z-index: 9999;
+  width: min(92vw, 360px);
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.dbg-head,
+.dbg-stats,
+.dbg-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.dbg-head {
+  justify-content: space-between;
+}
+
+.dbg-stats {
+  flex-wrap: wrap;
+}
+
+.dbg-stats .ok {
+  color: var(--green);
+}
+
+.dbg-stats .bad {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.dbg-actions button,
+.dbg-x {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.dbg-x {
+  border: none;
+  background: none;
+}
+
+.dbg-log {
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+  list-style: none;
+  overflow-y: auto;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  line-height: 1.45;
+}
+
+.dbg-log li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dbg-log code {
+  color: var(--muted);
+}
+
 /* ----- Table & melds ----- */
 .table-area {
   position: relative;
