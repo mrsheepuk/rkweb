@@ -865,21 +865,22 @@ input:focus {
   transform: scale(1.05);
 }
 
-/* Suit shape pip — non-colour cue for the suit. */
+/* Suit shape pip — non-colour cue for the suit. SVG shapes (see TileView) give
+   a fixed, font-independent box; the colour comes from `color` via currentColor. */
 .tile-pip {
   position: absolute;
-  top: 4px;
+  top: 5px;
   left: 5px;
-  font-size: 0.62rem;
-  line-height: 1;
+  width: 9px;
+  height: 9px;
   pointer-events: none;
 }
 
-/* The diamond fills less of its em-box and sits lower; size it up + lift it so
-   it optically matches ● ▲ ■. */
-.tile-orange .tile-pip {
-  font-size: 0.8rem;
-  top: 1px;
+.tile-pip svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 
 .tile-face {
