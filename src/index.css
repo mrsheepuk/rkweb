@@ -1222,6 +1222,7 @@ input:focus {
 .wcell-tile-staged {
   outline: 2px solid var(--accent);
   cursor: grab;
+  touch-action: none;
 }
 
 /* The rack reuses Rummle's slot grid (.rack-grid / .rack-slot); tiles fill the
@@ -1240,6 +1241,7 @@ input:focus {
   justify-content: center;
   cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 .wtile-selected {
   outline: 3px solid var(--accent);
@@ -1258,6 +1260,30 @@ input:focus {
   color: var(--muted);
 }
 .wtile-blank .wtile-face { color: var(--accent); }
+
+/* Drag-to-exchange tray below the rack. */
+.wexchange {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--slot-h) * 0.7);
+  margin: 6px auto 0;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.06);
+}
+.wexchange.over {
+  border-color: var(--accent);
+  background: rgba(210, 155, 50, 0.14);
+}
+.wexchange.has-tiles { border-style: solid; }
+.wexchange-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
 
 /* Live score / exchange preview under the rack. */
 .wpreview {

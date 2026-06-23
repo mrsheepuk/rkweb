@@ -18,10 +18,10 @@ export function WordsGameView({
   stale: boolean;
 }) {
   const index = useMemo(() => buildIndex(game), [game.seed]);
-  const handle = useRef<WordsBoardHandle>({ staged: [], selected: [] });
+  const handle = useRef<WordsBoardHandle>({ staged: [], exchange: [] });
   const [resetNonce, setResetNonce] = useState(0);
   const [staged, setStaged] = useState(handle.current.staged);
-  const [selected, setSelected] = useState(handle.current.selected);
+  const [exchange, setExchange] = useState(handle.current.exchange);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,12 +69,12 @@ export function WordsGameView({
     setResetNonce((k) => k + 1);
   };
   const onExchange = () => {
-    if (handle.current.selected.length === 0) return setError("Tap rack tiles to choose which to exchange");
-    void run(() => exchangeWordsTiles(game.id, handle.current.selected)).then(() => setResetNonce((k) => k + 1));
+    if (handle.current.exchange.length === 0) return setError("Drag tiles into the exchange tray first");
+    void run(() => exchangeWordsTiles(game.id, handle.current.exchange)).then(() => setResetNonce((k) => k + 1));
   };
 
   const winner = game.winnerId ? game.players[game.winnerId]?.name : null;
-  const working = staged.length > 0 || selected.length > 0;
+  const working = staged.length > 0 || exchange.length > 0;
 
   return (
     <div className="game wgame">
@@ -119,7 +119,7 @@ export function WordsGameView({
         onChange={(h) => {
           handle.current = h;
           setStaged(h.staged);
-          setSelected(h.selected);
+          setExchange(h.exchange);
         }}
       />
 
@@ -128,8 +128,8 @@ export function WordsGameView({
           {preview.error ?? `+${preview.score} points`}
         </p>
       )}
-      {myTurn && !preview && selected.length > 0 && (
-        <p className="wpreview is-muted">{selected.length} tile{selected.length > 1 ? "s" : ""} to exchange</p>
+      {myTurn && !preview && exchange.length > 0 && (
+        <p className="wpreview is-muted">{exchange.length} tile{exchange.length > 1 ? "s" : ""} to exchange</p>
       )}
       {error && <p className="error game-error">{error}</p>}
 
@@ -147,7 +147,7 @@ export function WordsGameView({
               </button>
             ) : (
               <>
-                <button className="btn btn-action is-draw" disabled={busy || selected.length === 0} onClick={onExchange}>
+                <button className="btn btn-action is-draw" disabled={busy || exchange.length === 0} onClick={onExchange}>
                   Exchange
                 </button>
                 <button className="btn btn-action" disabled={busy} onClick={onPass}>

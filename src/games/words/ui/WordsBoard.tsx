@@ -17,6 +17,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { playClack } from "../../../ui/sounds";
 import { insertAt, loadSlots, reconcileSlots, slotCountFor, type Slots } from "../../../ui/rackSlots";
 import { BOARD_SIZE, CENTER, premiumAt, type LetterTile } from "../types";
@@ -24,12 +25,13 @@ import type { Placement } from "../model";
 import { LetterTile as LetterTileView } from "./LetterTile";
 
 const PREMIUM_LABEL: Record<string, string> = { DL: "DL", TL: "TL", DW: "DW", TW: "TW" };
+const EXCHANGE = "exchange-tray";
 
 export interface WordsBoardHandle {
   /** Tiles staged on the board this turn. */
   staged: Placement[];
-  /** Rack tiles tapped for exchange (only meaningful when nothing is staged). */
-  selected: string[];
+  /** Rack tiles dragged into the exchange tray. */
+  exchange: string[];
 }
 
 // Prefer the cell/slot directly under the pointer, then any it overlaps, then
@@ -42,14 +44,17 @@ const collisionDetection: CollisionDetection = (args) => {
   return closestCorners(args);
 };
 
-type Located = { kind: "slot"; index: number } | { kind: "staged"; placement: Placement };
-type Target = { kind: "slot"; index: number } | { kind: "cell"; r: number; c: number };
+type Located =
+  | { kind: "slot"; index: number }
+  | { kind: "staged"; placement: Placement }
+  | { kind: "exchange" };
+type Target = { kind: "slot"; index: number } | { kind: "cell"; r: number; c: number } | { kind: "exchange" };
 
 /**
  * The drag-and-drop play surface. The rack is a free-form grid of tile-shaped
  * slots (gaps allowed) you can rearrange any time to try out words; the board is
- * a 15×15 grid you drag tiles onto — and around — on your turn. Committed tiles
- * are fixed. Tapping (not dragging) a rack tile marks it for exchange.
+ * a 15×15 grid you drag tiles onto — and around — on your turn. Drag rack tiles
+ * into the exchange tray to swap them. Committed tiles are fixed.
  */
 export function WordsBoard({
   board,
@@ -75,7 +80,7 @@ export function WordsBoard({
   const [cols, setCols] = useState(0);
 
   const [staged, setStaged] = useState<Placement[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [exchange, setExchange] = useState<string[]>([]);
   const [slots, setSlots] = useState<Slots>(() =>
     reconcileSlots(loadSlots(storageKey) ?? [], rack, slotCountFor(rack.length)),
   );
@@ -85,12 +90,13 @@ export function WordsBoard({
   slotsRef.current = slots;
   const stagedRef = useRef(staged);
   stagedRef.current = staged;
+  const exchangeRef = useRef(exchange);
+  exchangeRef.current = exchange;
 
   const prevMyTurn = useRef(myTurn);
   const prevReset = useRef(resetNonce);
   const prevBoard = useRef(boardKey);
 
-  // Committed tiles are fixed; quick lookups by cell.
   const committed = useMemo(() => {
     const m = new Map<string, Placement>();
     for (const p of board) m.set(`${p.r},${p.c}`, p);
@@ -104,12 +110,13 @@ export function WordsBoard({
       !myTurn || prevMyTurn.current !== myTurn || prevReset.current !== resetNonce || prevBoard.current !== boardKey;
 
     const workingStaged = reseed ? [] : stagedRef.current;
-    const stagedIds = new Set(workingStaged.map((p) => p.tileId));
-    const wanted = rack.filter((id) => !stagedIds.has(id));
+    const workingExchange = reseed ? [] : exchangeRef.current;
+    const held = new Set([...workingStaged.map((p) => p.tileId), ...workingExchange]);
+    const wanted = rack.filter((id) => !held.has(id));
 
     if (reseed) {
       setStaged([]);
-      setSelected([]);
+      setExchange([]);
     }
     setSlots(reconcileSlots(slotsRef.current, wanted, slotCountFor(rack.length, cols)));
 
@@ -145,7 +152,7 @@ export function WordsBoard({
 
   const slotsKey = slots.map((s) => s ?? "").join("|");
   const stagedKey = JSON.stringify(staged);
-  const selectedKey = selected.join(",");
+  const exchangeKey = exchange.join(",");
 
   // Persist rack layout and report the working play upward.
   useEffect(() => {
@@ -154,9 +161,9 @@ export function WordsBoard({
     } catch {
       /* ignore storage failures */
     }
-    onChange({ staged, selected });
+    onChange({ staged, exchange });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotsKey, stagedKey, selectedKey]);
+  }, [slotsKey, stagedKey, exchangeKey]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -169,10 +176,12 @@ export function WordsBoard({
     if (si >= 0) return { kind: "slot", index: si };
     const p = staged.find((p) => p.tileId === id);
     if (p) return { kind: "staged", placement: p };
+    if (exchange.includes(id)) return { kind: "exchange" };
     return null;
   }
 
   function classifyOver(overId: string): Target | null {
+    if (overId === EXCHANGE) return { kind: "exchange" };
     if (overId.startsWith("slot-")) return { kind: "slot", index: Number(overId.slice(5)) };
     if (overId.startsWith("cell-")) {
       const [, r, c] = overId.split("-");
@@ -191,25 +200,36 @@ export function WordsBoard({
     if (!src || !target) return;
 
     // Off-turn, only rack rearranging (slot ↔ slot) is allowed.
-    const involvesBoard = src.kind === "staged" || target.kind === "cell";
+    const involvesBoard = src.kind !== "slot" || target.kind !== "slot";
     if (!myTurn && involvesBoard) return;
 
     const newSlots = slots.slice();
     let newStaged = staged.slice();
+    let newExchange = exchange.slice();
     const removeSource = () => {
       if (src.kind === "slot") newSlots[src.index] = null;
-      else newStaged = newStaged.filter((p) => p.tileId !== id);
+      else if (src.kind === "staged") newStaged = newStaged.filter((p) => p.tileId !== id);
+      else newExchange = newExchange.filter((x) => x !== id);
     };
 
     if (target.kind === "slot") {
       if (slots[target.index] === id) return; // onto itself
-      removeSource();
-      // A staged tile recalled to the rack loses any blank assignment.
+      removeSource(); // a tile returning to the rack loses any blank assignment
       if (!insertAt(newSlots, target.index, id)) return; // no room
       setSlots(newSlots);
       setStaged(newStaged);
-      setSelected((s) => s.filter((x) => x !== id));
+      setExchange(newExchange);
       playClack(0.1);
+      return;
+    }
+
+    if (target.kind === "exchange") {
+      removeSource();
+      newExchange.push(id);
+      setSlots(newSlots);
+      setStaged(newStaged);
+      setExchange(newExchange);
+      playClack(0.16);
       return;
     }
 
@@ -237,13 +257,8 @@ export function WordsBoard({
     newStaged.push({ r, c, tileId: id, letter });
     setSlots(newSlots);
     setStaged(newStaged);
-    setSelected((s) => s.filter((x) => x !== id));
+    setExchange(newExchange);
     playClack(0.22);
-  }
-
-  function toggleSelect(id: string) {
-    if (!myTurn) return;
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
   const activeTile = activeId ? index.get(activeId) : null;
@@ -281,15 +296,10 @@ export function WordsBoard({
       <div className="rack-area">
         <div className="rack-grid wrack-grid" ref={gridRef}>
           {slots.map((tileId, i) => (
-            <Slot
-              key={i}
-              index={i}
-              tile={tileId ? index.get(tileId) : undefined}
-              selected={tileId ? selected.includes(tileId) : false}
-              onSelect={tileId ? () => toggleSelect(tileId) : undefined}
-            />
+            <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
           ))}
         </div>
+        {myTurn && <ExchangeTray ids={exchange} index={index} />}
       </div>
 
       <DragOverlay>
@@ -333,7 +343,7 @@ function BoardCell({
     <div ref={droppable ? setNodeRef : undefined} className={cls}>
       {occupant ? (
         staged ? (
-          <DraggableLetter id={occupant.tileId} tile={tile} shown={occupant.letter} staged />
+          <DraggableLetter id={occupant.tileId} tile={tile} shown={occupant.letter} onBoard />
         ) : (
           <span className="wcell-tile">
             <span className="wcell-letter">{occupant.letter}</span>
@@ -347,21 +357,27 @@ function BoardCell({
   );
 }
 
-function Slot({
-  index,
-  tile,
-  selected,
-  onSelect,
-}: {
-  index: number;
-  tile: LetterTile | undefined;
-  selected: boolean;
-  onSelect: (() => void) | undefined;
-}) {
+function Slot({ index, tile }: { index: number; tile: LetterTile | undefined }) {
   const { setNodeRef, isOver } = useDroppable({ id: `slot-${index}` });
   return (
     <div ref={setNodeRef} className={`rack-slot${tile ? " filled" : ""}${isOver ? " over" : ""}`}>
-      {tile ? <DraggableLetter id={tile.id} tile={tile} selected={selected} onSelect={onSelect} /> : null}
+      {tile ? <DraggableLetter id={tile.id} tile={tile} /> : null}
+    </div>
+  );
+}
+
+function ExchangeTray({ ids, index }: { ids: string[]; index: Map<string, LetterTile> }) {
+  const { setNodeRef, isOver } = useDroppable({ id: EXCHANGE });
+  return (
+    <div ref={setNodeRef} className={`wexchange${isOver ? " over" : ""}${ids.length ? " has-tiles" : ""}`}>
+      {ids.length === 0 ? (
+        <span className="wexchange-hint">Drag tiles here to exchange them</span>
+      ) : (
+        ids.map((id) => {
+          const tile = index.get(id);
+          return tile ? <DraggableLetter key={id} id={id} tile={tile} /> : null;
+        })
+      )}
     </div>
   );
 }
@@ -370,33 +386,26 @@ function DraggableLetter({
   id,
   tile,
   shown,
-  selected,
-  staged,
-  onSelect,
+  onBoard,
 }: {
   id: string;
   tile: LetterTile | undefined;
   shown?: string;
-  selected?: boolean;
-  staged?: boolean;
-  onSelect?: () => void;
+  onBoard?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   if (!tile) return null;
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.4 : 1,
-  };
+  const style = { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 };
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={onSelect}>
-      {staged ? (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {onBoard ? (
         // A staged tile wears the board-cell face so it sits flush in the grid.
         <span className="wcell-tile wcell-tile-staged">
           <span className="wcell-letter">{shown ?? tile.letter}</span>
           {!tile.isBlank && <span className="wcell-value">{tile.value}</span>}
         </span>
       ) : (
-        <LetterTileView tile={tile} shown={shown} selected={selected} />
+        <LetterTileView tile={tile} shown={shown} />
       )}
     </div>
   );
