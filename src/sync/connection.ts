@@ -8,6 +8,7 @@
 
 import { disableNetwork, enableNetwork } from "firebase/firestore";
 import { db } from "./firebase";
+import { logConn } from "./connectionLog";
 
 let resyncing = false;
 
@@ -17,14 +18,19 @@ let resyncing = false;
  * don't interleave the disable/enable pair. Callers gate this on observed
  * staleness so a healthy connection is never cycled.
  */
-export async function forceResync(): Promise<void> {
-  if (resyncing) return;
+export async function forceResync(reason = "manual"): Promise<void> {
+  if (resyncing) {
+    logConn("resync", `skip (already running) reason=${reason}`);
+    return;
+  }
   resyncing = true;
+  logConn("resync", `start reason=${reason}`);
   try {
     await disableNetwork(db);
     await enableNetwork(db);
-  } catch {
-    /* best-effort: on failure the SDK is left to recover on its own */
+    logConn("resync", "done");
+  } catch (e) {
+    logConn("resync", `error: ${e instanceof Error ? e.message : String(e)}`);
   } finally {
     resyncing = false;
   }

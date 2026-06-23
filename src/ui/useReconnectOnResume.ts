@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { forceResync } from "../sync/connection";
+import { logConn } from "../sync/connectionLog";
 
 // How long to let the SDK settle after the tab is foregrounded before deciding
 // it's stuck. On resume from a frozen tab the SDK needs a moment to notice the
@@ -18,6 +19,7 @@ export function useReconnectOnResume(stale: boolean): void {
   // Read the latest `stale` from the event handlers without re-binding them.
   const staleRef = useRef(stale);
   staleRef.current = stale;
+  const hiddenAt = useRef<number | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -28,24 +30,36 @@ export function useReconnectOnResume(stale: boolean): void {
 
     const onVisibility = () => {
       clear();
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        hiddenAt.current = Date.now();
+        logConn("hidden");
+        return;
+      }
+      const hiddenMs = hiddenAt.current ? Date.now() - hiddenAt.current : 0;
+      hiddenAt.current = null;
+      logConn("visible", `hiddenMs=${hiddenMs} stale=${staleRef.current}`);
       timer = setTimeout(() => {
-        if (staleRef.current) void forceResync();
+        logConn("note", `settle check: stale=${staleRef.current}`);
+        if (staleRef.current) void forceResync("visible");
       }, SETTLE_MS);
     };
 
     // A regained network connection is an unambiguous, rare signal — kick at
     // once if we're stale rather than waiting out the SDK's own backoff.
     const onOnline = () => {
-      if (staleRef.current) void forceResync();
+      logConn("online", `stale=${staleRef.current}`);
+      if (staleRef.current) void forceResync("online");
     };
+    const onOffline = () => logConn("offline");
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
     return () => {
       clear();
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
   }, []);
 }

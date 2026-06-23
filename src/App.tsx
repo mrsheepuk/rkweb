@@ -1,4 +1,5 @@
 import { APP_NAME } from "./constants";
+import { debugEnabled } from "./sync/connectionLog";
 import { useAuth } from "./ui/useAuth";
 import { useGame } from "./ui/useGame";
 import { useReconnectOnResume } from "./ui/useReconnectOnResume";
@@ -7,6 +8,7 @@ import { Home } from "./ui/Home";
 import { Lobby } from "./ui/Lobby";
 import { JoinPrompt } from "./ui/JoinPrompt";
 import { GameView } from "./ui/GameView";
+import { DebugOverlay } from "./ui/DebugOverlay";
 
 export function App() {
   const { gameId, goToGame, goHome } = useRoute();
@@ -18,46 +20,55 @@ export function App() {
   // Only resync when we can see we're stale; healthy connections stay untouched.
   useReconnectOnResume(stale);
 
+  return (
+    <>
+      {renderContent()}
+      {debugEnabled() && <DebugOverlay gameId={user ? gameId : null} stale={stale} />}
+    </>
+  );
+
   // Auth is anonymous, so there's nothing for the player to do while it settles
   // — show a bare spinner rather than misleading "signing in" / "not signed in"
   // copy. Only a genuine failure gets a message.
-  if (authError) return <Splash message={`Sign-in problem: ${authError}`} />;
-  if (authLoading || !user) return <Splash spinner />;
+  function renderContent() {
+    if (authError) return <Splash message={`Sign-in problem: ${authError}`} />;
+    if (authLoading || !user) return <Splash spinner />;
 
-  if (!gameId) {
-    return <Home uid={user.uid} onEnterGame={goToGame} />;
-  }
-
-  if (gameLoading) return <Splash message={`Loading game ${gameId}…`} />;
-  if (gameError || !game) {
-    return (
-      <Splash message={gameError ?? "Game not found"}>
-        <button className="btn" onClick={goHome}>
-          Back home
-        </button>
-      </Splash>
-    );
-  }
-
-  // Arrived via a link without being in the game yet: prompt to join an open
-  // lobby, or explain that an in-progress game can't be joined.
-  if (!game.players[user.uid]) {
-    if (game.status === "lobby") {
-      return <JoinPrompt game={game} onLeave={goHome} />;
+    if (!gameId) {
+      return <Home uid={user.uid} onEnterGame={goToGame} />;
     }
-    return (
-      <Splash message="This game has already started — you can't join now.">
-        <button className="btn" onClick={goHome}>
-          Back home
-        </button>
-      </Splash>
-    );
-  }
 
-  if (game.status === "lobby") {
-    return <Lobby game={game} me={user.uid} onLeave={goHome} />;
+    if (gameLoading) return <Splash message={`Loading game ${gameId}…`} />;
+    if (gameError || !game) {
+      return (
+        <Splash message={gameError ?? "Game not found"}>
+          <button className="btn" onClick={goHome}>
+            Back home
+          </button>
+        </Splash>
+      );
+    }
+
+    // Arrived via a link without being in the game yet: prompt to join an open
+    // lobby, or explain that an in-progress game can't be joined.
+    if (!game.players[user.uid]) {
+      if (game.status === "lobby") {
+        return <JoinPrompt game={game} onLeave={goHome} />;
+      }
+      return (
+        <Splash message="This game has already started — you can't join now.">
+          <button className="btn" onClick={goHome}>
+            Back home
+          </button>
+        </Splash>
+      );
+    }
+
+    if (game.status === "lobby") {
+      return <Lobby game={game} me={user.uid} onLeave={goHome} />;
+    }
+    return <GameView game={game} me={user.uid} onLeave={goHome} stale={stale} />;
   }
-  return <GameView game={game} me={user.uid} onLeave={goHome} stale={stale} />;
 }
 
 function Splash({

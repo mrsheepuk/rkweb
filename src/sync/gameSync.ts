@@ -7,6 +7,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocFromServer,
   onSnapshot,
   orderBy,
   query,
@@ -18,6 +19,7 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously, type User } from "firebase/auth";
 import { auth, db } from "./firebase";
+import { logConn } from "./connectionLog";
 import { newGameCode, normalizeCode } from "./codes";
 import { randomSeed } from "../game/rng";
 import type { MeldIds } from "../game/rules";
@@ -132,11 +134,34 @@ export function subscribeGame(
     { includeMetadataChanges: true },
     (snap) => {
       const fromCache = snap.metadata.fromCache;
-      if (!snap.exists()) return onChange(null, fromCache);
-      onChange(fromStored(snap.data() as StoredGame), fromCache);
+      const data = snap.exists() ? (snap.data() as StoredGame) : null;
+      logConn(
+        "snapshot",
+        `fromCache=${fromCache} pending=${snap.metadata.hasPendingWrites}` +
+          (data ? ` turn=${data.currentTurn} status=${data.status}` : " (deleted)"),
+      );
+      if (!data) return onChange(null, fromCache);
+      onChange(fromStored(data), fromCache);
     },
-    (err) => onError?.(err),
+    (err) => {
+      logConn("note", `snapshot error: ${err.message}`);
+      onError?.(err);
+    },
   );
+}
+
+/**
+ * One-shot server-forced read, for diagnostics. Distinguishes "the listener
+ * stalled but the network is fine" (this returns fresh data quickly) from "the
+ * device is genuinely offline" (this hangs or rejects).
+ */
+export async function probeGameFromServer(
+  id: string,
+): Promise<{ turn: number; status: GameStatus; updatedAtMs: number } | null> {
+  const snap = await getDocFromServer(gameRef(id));
+  if (!snap.exists()) return null;
+  const data = snap.data() as StoredGame;
+  return { turn: data.currentTurn, status: data.status, updatedAtMs: toMillis(data.updatedAt) };
 }
 
 // --- "my games" list -------------------------------------------------------
