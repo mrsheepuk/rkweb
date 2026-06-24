@@ -1159,37 +1159,48 @@ input:focus {
 
 /* Slippy board: the 15×15 grid lives in a scrollable viewport so you can pan
    around it (auto-centred on load) while the rack stays in view below. */
-.wboard-viewport {
+/* The board frame: sizes/centres the viewport and hosts the edge-shadow overlay. */
+.wboard-frame {
+  position: relative;
+  width: max-content;
   max-width: 100%;
+  margin: 0.5rem auto;
+  --fade-size: 16px;
+}
+.wboard-viewport {
+  width: 100%;
   max-height: 50vh;
   overflow: auto;
-  margin: 0.5rem auto;
   padding: 6px;
   background: var(--felt-lo);
   border-radius: 8px;
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  /* Scroll-aware fade: each --fade-* is set to a width by the component only on
-     edges that can still scroll, dissolving the board there to signal "more this
-     way". Two gradients (H + V) intersected so corners fade too. */
-  --fade-size: 36px;
-  --fade-t: 0px;
-  --fade-r: 0px;
-  --fade-b: 0px;
-  --fade-l: 0px;
-  -webkit-mask-image:
-    linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%),
-    linear-gradient(to bottom, transparent 0, #000 var(--fade-t), #000 calc(100% - var(--fade-b)), transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%),
-    linear-gradient(to bottom, transparent 0, #000 var(--fade-t), #000 calc(100% - var(--fade-b)), transparent 100%);
-  mask-composite: intersect;
   /* Fades are the only overflow cue for now — hide the native scrollbars. */
   scrollbar-width: none;
 }
 .wboard-viewport::-webkit-scrollbar { display: none; }
+
+/* Scroll-aware edge shadow: a soft dark gradient painted only on edges that can
+   still scroll (widths set per-edge by the component via --fade-*), so the
+   surface looks like it slips under the frame. Non-interactive overlay. */
+.wedges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 8px;
+  --edge: rgba(18, 12, 5, 0.55);
+  --fade-t: 0px;
+  --fade-r: 0px;
+  --fade-b: 0px;
+  --fade-l: 0px;
+  background:
+    linear-gradient(to right, var(--edge), transparent) left / var(--fade-l) 100% no-repeat,
+    linear-gradient(to left, var(--edge), transparent) right / var(--fade-r) 100% no-repeat,
+    linear-gradient(to bottom, var(--edge), transparent) top / 100% var(--fade-t) no-repeat,
+    linear-gradient(to top, var(--edge), transparent) bottom / 100% var(--fade-b) no-repeat;
+}
 .wboard {
   display: flex;
   flex-direction: column;
@@ -1264,23 +1275,23 @@ input:focus {
    few spare slots for elbow room; scrolls horizontally if it overflows. The
    `safe` keyword keeps it centred when it fits but never clips the first tiles
    when it doesn't. */
+/* The rack frame: sizes/centres the row and hosts its (horizontal) edge shadow. */
+.wrack-frame {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+  margin: 0.5rem auto 0;
+  --fade-size: 13px;
+}
 .wrack-row {
   display: flex;
   gap: 4px;
   justify-content: safe center;
   padding: 8px;
-  margin: 0.5rem auto 0;
   background: var(--tray);
   border-radius: 8px;
   overflow-x: auto;
   box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
-  /* Scroll-aware fade (horizontal only) — dissolves the edge tile into a peek so
-     it's clear there are more tiles to scroll to. Driven by --fade-l/--fade-r. */
-  --fade-size: 30px;
-  --fade-l: 0px;
-  --fade-r: 0px;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
   scrollbar-width: none;
 }
 .wrack-row::-webkit-scrollbar { display: none; }

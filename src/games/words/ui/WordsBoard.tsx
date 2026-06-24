@@ -271,35 +271,43 @@ export function WordsBoard({
       onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragEnd={handleDragEnd}
     >
-      <div className="wboard-viewport" ref={viewportRef} style={fadeVars(boardEdges)}>
-        <div className="wboard">
-          {Array.from({ length: BOARD_SIZE }, (_, r) => (
-            <div key={r} className="wrow">
-              {Array.from({ length: BOARD_SIZE }, (_, c) => {
-                const fixed = committed.get(`${r},${c}`);
-                const stagedHere = staged.find((p) => p.r === r && p.c === c);
-                return (
-                  <BoardCell
-                    key={c}
-                    r={r}
-                    c={c}
-                    fixed={fixed}
-                    staged={stagedHere}
-                    index={index}
-                    droppable={myTurn && !fixed}
-                  />
-                );
-              })}
-            </div>
-          ))}
+      <div className="wboard-frame">
+        <div className="wboard-viewport" ref={viewportRef}>
+          <div className="wboard">
+            {Array.from({ length: BOARD_SIZE }, (_, r) => (
+              <div key={r} className="wrow">
+                {Array.from({ length: BOARD_SIZE }, (_, c) => {
+                  const fixed = committed.get(`${r},${c}`);
+                  const stagedHere = staged.find((p) => p.r === r && p.c === c);
+                  return (
+                    <BoardCell
+                      key={c}
+                      r={r}
+                      c={c}
+                      fixed={fixed}
+                      staged={stagedHere}
+                      index={index}
+                      droppable={myTurn && !fixed}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
+        {/* Soft dark edge-shadow shown only where the board can still scroll —
+            makes the surface look like it passes under the frame. */}
+        <div className="wedges" aria-hidden="true" style={fadeVars(boardEdges)} />
       </div>
 
       <div className="rack-area">
-        <div className="wrack-row" ref={rackRef} style={fadeVars(rackEdges)}>
-          {slots.map((tileId, i) => (
-            <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
-          ))}
+        <div className="wrack-frame">
+          <div className="wrack-row" ref={rackRef}>
+            {slots.map((tileId, i) => (
+              <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
+            ))}
+          </div>
+          <div className="wedges" aria-hidden="true" style={fadeVars(rackEdges)} />
         </div>
         {myTurn && <ExchangeTray ids={exchange} index={index} />}
       </div>

@@ -88,10 +88,11 @@ reuses Rummle's exact slot mechanics — `insertAt`/`reconcileSlots`/`loadSlots`
 were extracted to `src/ui/rackSlots.ts` and are shared by both boards (only the
 layout differs: Rummle wraps a multi-row grid via `slotCountFor`; Words is a
 fixed single row). Exchange is a **drag-to-exchange tray** below the rack. Both
-scroll surfaces (board viewport + rack) show **scroll-aware fades** — a mask that
-dissolves an edge only where there's more to scroll, driven by the shared
-`src/ui/useScrollEdges.ts` hook (native scrollbars are hidden). Live-draft
-spectating is still a follow-up.
+scroll surfaces (board viewport + rack) show a **scroll-aware edge shadow** — a
+soft dark gradient overlay (`.wedges`) painted only on edges that can still
+scroll, so the surface looks like it slips under the frame; widths are driven
+per-edge by the shared `src/ui/useScrollEdges.ts` hook (native scrollbars are
+hidden). Live-draft spectating is still a follow-up.
 
 ## Gotchas / decisions
 
