@@ -1153,34 +1153,45 @@ input:focus {
   letter-spacing: 0.04em;
 }
 
-/* The 15×15 board. */
-.wboard {
-  --wcell: clamp(18px, 5.6vw, 34px);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: max-content;
+/* One tile size, shared by the board and the rack, so a tile looks identical
+   wherever it sits. */
+.wgame { --wtile: 40px; }
+
+/* Slippy board: the 15×15 grid lives in a scrollable viewport so you can pan
+   around it (auto-centred on load) while the rack stays in view below. */
+.wboard-viewport {
   max-width: 100%;
+  max-height: 50vh;
+  overflow: auto;
   margin: 0.5rem auto;
   padding: 6px;
   background: var(--felt-lo);
   border-radius: 8px;
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.wboard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
 }
 .wrow {
   display: flex;
   gap: 2px;
 }
 .wcell {
-  width: var(--wcell);
-  height: var(--wcell);
+  position: relative;
+  width: var(--wtile);
+  height: var(--wtile);
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 3px;
   background: var(--felt-hi);
-  color: rgba(255, 255, 255, 0.55);
-  font-size: calc(var(--wcell) * 0.3);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: calc(var(--wtile) * 0.28);
   font-weight: 600;
   user-select: none;
 }
@@ -1190,52 +1201,17 @@ input:focus {
 .wcell-tw { background: #8a2f25; }
 .wcell-center { background: #9e5a3b; }
 .wcell-premium { opacity: 0.85; color: #fff; }
+.wcell-over { box-shadow: inset 0 0 0 2px var(--accent); z-index: 1; }
 
-/* A placed tile (committed or staged) — an aged-ivory cap, like Rummle tiles. */
-.wcell-filled { cursor: default; }
-.wcell-tile {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--tile-bg-1), var(--tile-bg-3));
-  color: var(--text);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
-}
-.wcell-letter {
-  font-size: calc(var(--wcell) * 0.5);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.wcell-value {
-  position: absolute;
-  right: 1px;
-  bottom: 0;
-  font-size: calc(var(--wcell) * 0.26);
-  color: var(--muted);
-}
-/* Drag-hover highlight on a droppable cell, and a tile staged this turn. */
-.wcell-over { box-shadow: inset 0 0 0 2px var(--accent); }
-.wcell-tile-staged {
-  outline: 2px solid var(--accent);
-  cursor: grab;
-  touch-action: none;
-}
-
-/* The rack reuses Rummle's slot grid (.rack-grid / .rack-slot); tiles fill the
-   slot. The grid already gives several rows of working space (min 21 slots) so
-   there's room to shuffle tiles around while hunting for a word. */
+/* The one canonical tile — square, aged ivory — used on the rack AND the board. */
 .wtile {
   position: relative;
-  width: var(--slot-w);
-  height: var(--slot-h);
-  border-radius: 6px;
+  width: var(--wtile);
+  height: var(--wtile);
+  border-radius: 4px;
   background: linear-gradient(180deg, var(--tile-bg-1), var(--tile-bg-3));
   color: var(--text);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 252, 240, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1243,32 +1219,64 @@ input:focus {
   user-select: none;
   touch-action: none;
 }
-.wtile-selected {
-  outline: 3px solid var(--accent);
-  box-shadow: 0 0 0 3px rgba(210, 155, 50, 0.3);
+.wtile-fixed {
+  /* a committed tile — locked, flatter than a tile in hand */
+  cursor: default;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(180deg, var(--tile-bg-2), var(--tile-bg-3));
 }
+.wtile-staged { outline: 2px solid var(--accent); }
 .wtile-face {
-  font-size: 1.4rem;
+  font-size: calc(var(--wtile) * 0.5);
   font-weight: 700;
   text-transform: uppercase;
+  line-height: 1;
 }
 .wtile-value {
   position: absolute;
-  right: 4px;
-  bottom: 2px;
-  font-size: 0.7rem;
+  right: 3px;
+  bottom: 1px;
+  font-size: calc(var(--wtile) * 0.26);
   color: var(--muted);
 }
 .wtile-blank .wtile-face { color: var(--accent); }
+
+/* The rack: a single row of square slots (Rummle's exact slot mechanics) with a
+   few spare slots for elbow room; scrolls horizontally if it overflows. The
+   `safe` keyword keeps it centred when it fits but never clips the first tiles
+   when it doesn't. */
+.wrack-row {
+  display: flex;
+  gap: 4px;
+  justify-content: safe center;
+  padding: 8px;
+  margin: 0.5rem auto 0;
+  background: var(--tray);
+  border-radius: 8px;
+  overflow-x: auto;
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+.wrack-slot {
+  flex: 0 0 var(--wtile);
+  width: var(--wtile);
+  height: var(--wtile);
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+.wrack-slot.filled { background: transparent; box-shadow: none; }
+.wrack-slot.over { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(210, 155, 50, 0.14); }
 
 /* Drag-to-exchange tray below the rack. */
 .wexchange {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   align-items: center;
   justify-content: center;
-  min-height: calc(var(--slot-h) * 0.7);
+  min-height: calc(var(--wtile) * 0.8);
   margin: 6px auto 0;
   padding: 6px 10px;
   border: 1px dashed var(--line);

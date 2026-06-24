@@ -19,13 +19,15 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { playClack } from "../../../ui/sounds";
-import { insertAt, loadSlots, reconcileSlots, slotCountFor, type Slots } from "../../../ui/rackSlots";
-import { BOARD_SIZE, CENTER, premiumAt, type LetterTile } from "../types";
+import { insertAt, loadSlots, reconcileSlots, type Slots } from "../../../ui/rackSlots";
+import { BOARD_SIZE, CENTER, RACK_SIZE, premiumAt, type LetterTile } from "../types";
 import type { Placement } from "../model";
 import { LetterTile as LetterTileView } from "./LetterTile";
 
 const PREMIUM_LABEL: Record<string, string> = { DL: "DL", TL: "TL", DW: "DW", TW: "TW" };
 const EXCHANGE = "exchange-tray";
+/** One row of square slots: the rack plus a few spare for rearranging room. */
+const RACK_SLOTS = RACK_SIZE + 4;
 
 export interface WordsBoardHandle {
   /** Tiles staged on the board this turn. */
@@ -35,7 +37,7 @@ export interface WordsBoardHandle {
 }
 
 // Prefer the cell/slot directly under the pointer, then any it overlaps, then
-// nearest — keeps drops accurate across small slots and the board grid.
+// nearest — keeps drops accurate across the rack and the board grid.
 const collisionDetection: CollisionDetection = (args) => {
   const pointer = pointerWithin(args);
   if (pointer.length > 0) return pointer;
@@ -51,10 +53,11 @@ type Located =
 type Target = { kind: "slot"; index: number } | { kind: "cell"; r: number; c: number } | { kind: "exchange" };
 
 /**
- * The drag-and-drop play surface. The rack is a free-form grid of tile-shaped
- * slots (gaps allowed) you can rearrange any time to try out words; the board is
- * a 15×15 grid you drag tiles onto — and around — on your turn. Drag rack tiles
- * into the exchange tray to swap them. Committed tiles are fixed.
+ * The drag-and-drop play surface. The rack is a single row of square slots
+ * (gaps allowed; Rummle's exact insert/shift mechanics) you can rearrange any
+ * time to try out words. The board is a 15×15 grid in a scrollable "slippy"
+ * viewport — drag tiles onto it, and around it, on your turn; pan to see more
+ * while the rack stays in view. Drag rack tiles into the exchange tray to swap.
  */
 export function WordsBoard({
   board,
@@ -76,13 +79,12 @@ export function WordsBoard({
   const boardKey = useMemo(() => JSON.stringify(board), [board]);
   const rackKey = useMemo(() => JSON.stringify(rack), [rack]);
 
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [cols, setCols] = useState(0);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const [staged, setStaged] = useState<Placement[]>([]);
   const [exchange, setExchange] = useState<string[]>([]);
   const [slots, setSlots] = useState<Slots>(() =>
-    reconcileSlots(loadSlots(storageKey) ?? [], rack, slotCountFor(rack.length)),
+    reconcileSlots(loadSlots(storageKey) ?? [], rack, RACK_SLOTS),
   );
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -103,6 +105,15 @@ export function WordsBoard({
     return m;
   }, [boardKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Centre the board viewport on the star once it's laid out, so the opening
+  // play is in view without the player having to pan there first.
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2;
+    vp.scrollTop = (vp.scrollHeight - vp.clientHeight) / 2;
+  }, []);
+
   // Reseed the working play on turn / reset / committed-board changes, without
   // clobbering an in-progress turn or the player's rack layout.
   useEffect(() => {
@@ -118,37 +129,13 @@ export function WordsBoard({
       setStaged([]);
       setExchange([]);
     }
-    setSlots(reconcileSlots(slotsRef.current, wanted, slotCountFor(rack.length, cols)));
+    setSlots(reconcileSlots(slotsRef.current, wanted, RACK_SLOTS));
 
     prevMyTurn.current = myTurn;
     prevReset.current = resetNonce;
     prevBoard.current = boardKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myTurn, boardKey, rackKey, resetNonce]);
-
-  // Track the rack grid's column count (CSS auto-fill) to keep the slot count a
-  // whole number of rows — same approach as Rummle's Board.
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const measure = () => {
-      const tmpl = getComputedStyle(grid).gridTemplateColumns;
-      const n = tmpl ? tmpl.split(" ").filter(Boolean).length : 0;
-      setCols((c) => (n > 0 && n !== c ? n : c));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(grid);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (cols <= 0) return;
-    setSlots((prev) =>
-      reconcileSlots(prev, prev.filter((s): s is string => s !== null), slotCountFor(rack.length, cols)),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols]);
 
   const slotsKey = slots.map((s) => s ?? "").join("|");
   const stagedKey = JSON.stringify(staged);
@@ -271,30 +258,32 @@ export function WordsBoard({
       onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragEnd={handleDragEnd}
     >
-      <div className="wboard">
-        {Array.from({ length: BOARD_SIZE }, (_, r) => (
-          <div key={r} className="wrow">
-            {Array.from({ length: BOARD_SIZE }, (_, c) => {
-              const fixed = committed.get(`${r},${c}`);
-              const stagedHere = staged.find((p) => p.r === r && p.c === c);
-              return (
-                <BoardCell
-                  key={c}
-                  r={r}
-                  c={c}
-                  fixed={fixed}
-                  staged={stagedHere}
-                  index={index}
-                  droppable={myTurn && !fixed}
-                />
-              );
-            })}
-          </div>
-        ))}
+      <div className="wboard-viewport" ref={viewportRef}>
+        <div className="wboard">
+          {Array.from({ length: BOARD_SIZE }, (_, r) => (
+            <div key={r} className="wrow">
+              {Array.from({ length: BOARD_SIZE }, (_, c) => {
+                const fixed = committed.get(`${r},${c}`);
+                const stagedHere = staged.find((p) => p.r === r && p.c === c);
+                return (
+                  <BoardCell
+                    key={c}
+                    r={r}
+                    c={c}
+                    fixed={fixed}
+                    staged={stagedHere}
+                    index={index}
+                    droppable={myTurn && !fixed}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="rack-area">
-        <div className="rack-grid wrack-grid" ref={gridRef}>
+        <div className="wrack-row">
           {slots.map((tileId, i) => (
             <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
           ))}
@@ -333,7 +322,6 @@ function BoardCell({
     "wcell",
     premium ? `wcell-${premium.toLowerCase()}` : "",
     isCenter ? "wcell-center" : "",
-    occupant ? "wcell-filled" : "",
     isOver ? "wcell-over" : "",
   ]
     .filter(Boolean)
@@ -341,14 +329,11 @@ function BoardCell({
 
   return (
     <div ref={droppable ? setNodeRef : undefined} className={cls}>
-      {occupant ? (
+      {occupant && tile ? (
         staged ? (
-          <DraggableLetter id={occupant.tileId} tile={tile} shown={occupant.letter} onBoard />
+          <DraggableLetter id={occupant.tileId} tile={tile} shown={occupant.letter} variant="staged" />
         ) : (
-          <span className="wcell-tile">
-            <span className="wcell-letter">{occupant.letter}</span>
-            {tile && !tile.isBlank && <span className="wcell-value">{tile.value}</span>}
-          </span>
+          <LetterTileView tile={tile} shown={occupant.letter} variant="fixed" />
         )
       ) : (
         premium && <span className="wcell-premium">{isCenter ? "★" : PREMIUM_LABEL[premium]}</span>
@@ -360,7 +345,7 @@ function BoardCell({
 function Slot({ index, tile }: { index: number; tile: LetterTile | undefined }) {
   const { setNodeRef, isOver } = useDroppable({ id: `slot-${index}` });
   return (
-    <div ref={setNodeRef} className={`rack-slot${tile ? " filled" : ""}${isOver ? " over" : ""}`}>
+    <div ref={setNodeRef} className={`wrack-slot${tile ? " filled" : ""}${isOver ? " over" : ""}`}>
       {tile ? <DraggableLetter id={tile.id} tile={tile} /> : null}
     </div>
   );
@@ -386,27 +371,18 @@ function DraggableLetter({
   id,
   tile,
   shown,
-  onBoard,
+  variant,
 }: {
   id: string;
-  tile: LetterTile | undefined;
+  tile: LetterTile;
   shown?: string;
-  onBoard?: boolean;
+  variant?: "staged" | "fixed";
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
-  if (!tile) return null;
   const style = { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 };
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {onBoard ? (
-        // A staged tile wears the board-cell face so it sits flush in the grid.
-        <span className="wcell-tile wcell-tile-staged">
-          <span className="wcell-letter">{shown ?? tile.letter}</span>
-          {!tile.isBlank && <span className="wcell-value">{tile.value}</span>}
-        </span>
-      ) : (
-        <LetterTileView tile={tile} shown={shown} />
-      )}
+      <LetterTileView tile={tile} shown={shown} variant={variant} />
     </div>
   );
 }

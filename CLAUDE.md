@@ -80,12 +80,15 @@ conservation, but never checks that words are real. A dictionary (client DAWG or
 a Cloud-Function validator — the latter also fixes cheat-safety) is the obvious
 next step. The board is stored as a **flat list of `{r,c,tileId,letter}`
 placements**, which both sidesteps the no-nested-arrays rule a 2-D grid would hit
-and is denser. UI is **drag-and-drop** (`WordsBoard`): drag rack tiles onto the
-board and rearrange them there; the rack is the same free-form slot grid as
-Rummle — the slot helpers (`insertAt`/`reconcileSlots`/`slotCountFor`/`loadSlots`)
-were extracted to `src/ui/rackSlots.ts` and are now shared by both boards. Tapping
-(not dragging) a rack tile marks it for exchange. Live-draft spectating is still a
-follow-up.
+and is denser. UI is **drag-and-drop** (`WordsBoard`): one square tile size
+shared by rack and board (1:1), the board in a scrollable "slippy" viewport
+(auto-centred on the star) so you can pan it while the rack stays in view, and a
+**single row** of square rack slots with a few spare for elbow room. The rack
+reuses Rummle's exact slot mechanics — `insertAt`/`reconcileSlots`/`loadSlots`
+were extracted to `src/ui/rackSlots.ts` and are shared by both boards (only the
+layout differs: Rummle wraps a multi-row grid via `slotCountFor`; Words is a
+fixed single row). Exchange is a **drag-to-exchange tray** below the rack.
+Live-draft spectating is still a follow-up.
 
 ## Gotchas / decisions
 
