@@ -20,6 +20,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { playClack } from "../../../ui/sounds";
 import { insertAt, loadSlots, reconcileSlots, type Slots } from "../../../ui/rackSlots";
+import { useScrollEdges, type ScrollEdges } from "../../../ui/useScrollEdges";
 import { BOARD_SIZE, CENTER, RACK_SIZE, premiumAt, type LetterTile } from "../types";
 import type { Placement } from "../model";
 import { LetterTile as LetterTileView } from "./LetterTile";
@@ -28,6 +29,17 @@ const PREMIUM_LABEL: Record<string, string> = { DL: "DL", TL: "TL", DW: "DW", TW
 const EXCHANGE = "exchange-tray";
 /** One row of square slots: the rack plus a few spare for rearranging room. */
 const RACK_SLOTS = RACK_SIZE + 4;
+
+/** Maps "which edges can still scroll" to the fade-width CSS vars the mask reads. */
+function fadeVars(e: ScrollEdges): React.CSSProperties {
+  const on = "var(--fade-size)";
+  return {
+    ["--fade-l"]: e.left ? on : "0px",
+    ["--fade-r"]: e.right ? on : "0px",
+    ["--fade-t"]: e.top ? on : "0px",
+    ["--fade-b"]: e.bottom ? on : "0px",
+  } as React.CSSProperties;
+}
 
 export interface WordsBoardHandle {
   /** Tiles staged on the board this turn. */
@@ -79,7 +91,8 @@ export function WordsBoard({
   const boardKey = useMemo(() => JSON.stringify(board), [board]);
   const rackKey = useMemo(() => JSON.stringify(rack), [rack]);
 
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const { ref: viewportRef, edges: boardEdges } = useScrollEdges<HTMLDivElement>();
+  const { ref: rackRef, edges: rackEdges } = useScrollEdges<HTMLDivElement>();
 
   const [staged, setStaged] = useState<Placement[]>([]);
   const [exchange, setExchange] = useState<string[]>([]);
@@ -258,7 +271,7 @@ export function WordsBoard({
       onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragEnd={handleDragEnd}
     >
-      <div className="wboard-viewport" ref={viewportRef}>
+      <div className="wboard-viewport" ref={viewportRef} style={fadeVars(boardEdges)}>
         <div className="wboard">
           {Array.from({ length: BOARD_SIZE }, (_, r) => (
             <div key={r} className="wrow">
@@ -283,7 +296,7 @@ export function WordsBoard({
       </div>
 
       <div className="rack-area">
-        <div className="wrack-row">
+        <div className="wrack-row" ref={rackRef} style={fadeVars(rackEdges)}>
           {slots.map((tileId, i) => (
             <Slot key={i} index={i} tile={tileId ? index.get(tileId) : undefined} />
           ))}

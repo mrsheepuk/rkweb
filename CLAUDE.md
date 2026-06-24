@@ -87,8 +87,11 @@ shared by rack and board (1:1), the board in a scrollable "slippy" viewport
 reuses Rummle's exact slot mechanics — `insertAt`/`reconcileSlots`/`loadSlots`
 were extracted to `src/ui/rackSlots.ts` and are shared by both boards (only the
 layout differs: Rummle wraps a multi-row grid via `slotCountFor`; Words is a
-fixed single row). Exchange is a **drag-to-exchange tray** below the rack.
-Live-draft spectating is still a follow-up.
+fixed single row). Exchange is a **drag-to-exchange tray** below the rack. Both
+scroll surfaces (board viewport + rack) show **scroll-aware fades** — a mask that
+dissolves an edge only where there's more to scroll, driven by the shared
+`src/ui/useScrollEdges.ts` hook (native scrollbars are hidden). Live-draft
+spectating is still a follow-up.
 
 ## Gotchas / decisions
 
