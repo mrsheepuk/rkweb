@@ -24,10 +24,16 @@ export function WordsGameView({
   const [exchange, setExchange] = useState(handle.current.exchange);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // View defaults to whole-board off-turn and zoomed-in on your turn; a manual
+  // toggle overrides that until the next turn boundary, when it re-syncs.
+  const [viewOverride, setViewOverride] = useState<null | "fit" | "zoom">(null);
 
   const activeId = currentPlayerId(game);
   const myTurn = activeId === me && game.status === "playing";
   const players = Object.values(game.players).sort((a, b) => a.seat - b.seat);
+  const zoomed = (viewOverride ?? (myTurn ? "zoom" : "fit")) === "zoom";
+
+  useEffect(() => setViewOverride(null), [game.currentTurn]);
 
   // Turn chime / win flourish, matching Rummle's GameView.
   const prevTurn = useRef(game.currentTurn);
@@ -77,7 +83,7 @@ export function WordsGameView({
   const working = staged.length > 0 || exchange.length > 0;
 
   return (
-    <div className="game wgame">
+    <div className={`game wgame${zoomed ? "" : " fit"}`}>
       <header className="game-bar">
         <div className="turn-track">
           {players.map((p) => (
@@ -92,6 +98,14 @@ export function WordsGameView({
         </div>
         <div className="game-meta">
           <span className="pool-count">Bag {game.bag.length}</span>
+          <button
+            className="btn btn-zoom"
+            aria-label={zoomed ? "Fit whole board" : "Zoom in"}
+            title={zoomed ? "Fit whole board" : "Zoom in"}
+            onClick={() => setViewOverride(zoomed ? "fit" : "zoom")}
+          >
+            {zoomed ? "Fit" : "Zoom"}
+          </button>
           <button className="btn btn-icon" aria-label="Home" onClick={onLeave}>
             ⎋
           </button>
@@ -114,6 +128,7 @@ export function WordsGameView({
         rack={game.racks[me] ?? []}
         index={index}
         myTurn={myTurn}
+        zoomed={zoomed}
         storageKey={`words:rack:${game.id}:${me}`}
         resetNonce={resetNonce}
         onChange={(h) => {

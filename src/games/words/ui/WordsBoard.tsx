@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -27,8 +27,9 @@ import { LetterTile as LetterTileView } from "./LetterTile";
 
 const PREMIUM_LABEL: Record<string, string> = { DL: "DL", TL: "TL", DW: "DW", TW: "TW" };
 const EXCHANGE = "exchange-tray";
-/** One row of square slots: the rack plus a few spare for rearranging room. */
-const RACK_SLOTS = RACK_SIZE + 4;
+/** One row of square slots: the rack plus a couple spare for rearranging room.
+ * Kept small so the row fits a phone width without horizontal scrolling. */
+const RACK_SLOTS = RACK_SIZE + 2;
 
 /** Maps "which edges can still scroll" to the fade-width CSS vars the mask reads. */
 function fadeVars(e: ScrollEdges): React.CSSProperties {
@@ -76,6 +77,7 @@ export function WordsBoard({
   rack,
   index,
   myTurn,
+  zoomed,
   storageKey,
   resetNonce,
   onChange,
@@ -84,6 +86,8 @@ export function WordsBoard({
   rack: string[];
   index: Map<string, LetterTile>;
   myTurn: boolean;
+  /** Zoomed-in (slippy) view vs fit-whole-board; drives re-centring. */
+  zoomed: boolean;
   storageKey: string;
   resetNonce: number;
   onChange: (handle: WordsBoardHandle) => void;
@@ -118,14 +122,15 @@ export function WordsBoard({
     return m;
   }, [boardKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Centre the board viewport on the star once it's laid out, so the opening
-  // play is in view without the player having to pan there first.
-  useEffect(() => {
+  // Centre the board viewport whenever we enter the zoomed view (and on mount if
+  // it starts zoomed), so the player lands in the middle rather than top-left.
+  // Fit view fills the viewport, so there's nothing to centre there.
+  useLayoutEffect(() => {
     const vp = viewportRef.current;
-    if (!vp) return;
+    if (!vp || !zoomed) return;
     vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2;
     vp.scrollTop = (vp.scrollHeight - vp.clientHeight) / 2;
-  }, []);
+  }, [zoomed]);
 
   // Reseed the working play on turn / reset / committed-board changes, without
   // clobbering an in-progress turn or the player's rack layout.

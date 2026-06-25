@@ -80,14 +80,18 @@ conservation, but never checks that words are real. A dictionary (client DAWG or
 a Cloud-Function validator — the latter also fixes cheat-safety) is the obvious
 next step. The board is stored as a **flat list of `{r,c,tileId,letter}`
 placements**, which both sidesteps the no-nested-arrays rule a 2-D grid would hit
-and is denser. UI is **drag-and-drop** (`WordsBoard`): one square tile size
-shared by rack and board (1:1), the board in a scrollable "slippy" viewport
-(auto-centred on the star) so you can pan it while the rack stays in view, and a
-**single row** of square rack slots with a few spare for elbow room. The rack
-reuses Rummle's exact slot mechanics — `insertAt`/`reconcileSlots`/`loadSlots`
-were extracted to `src/ui/rackSlots.ts` and are shared by both boards (only the
-layout differs: Rummle wraps a multi-row grid via `slotCountFor`; Words is a
-fixed single row). Exchange is a **drag-to-exchange tray** below the rack. Both
+and is denser. UI is **drag-and-drop** (`WordsBoard`). The board sits in a
+scrollable "slippy" viewport with a **Fit/Zoom toggle** (game bar): zoomed-in is
+40px cells you pan around (re-centred on entering zoom); Fit shrinks `--wcell` so
+the whole 15×15 lands in the viewport. The view auto-derives from whose turn it
+is (off-turn → Fit for an overview, your turn → Zoom to place), with a manual
+override that resets each turn. The **rack** is a single row of square slots
+(`--wtile`, sized to fit one row across the width — no horizontal scroll on a
+phone) reusing Rummle's exact slot mechanics — `insertAt`/`reconcileSlots`/
+`loadSlots` were extracted to `src/ui/rackSlots.ts` and are shared by both boards
+(only the layout differs: Rummle wraps a multi-row grid via `slotCountFor`; Words
+is a fixed single row). Board cells use `--wcell`, rack tiles `--wtile`, so the
+two scale independently. Exchange is a **drag-to-exchange tray** below the rack. Both
 scroll surfaces (board viewport + rack) show a **scroll-aware edge shadow** — a
 soft dark gradient overlay (`.wedges`) painted only on edges that can still
 scroll, so the surface looks like it slips under the frame; widths are driven

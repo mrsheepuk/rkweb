@@ -38,8 +38,11 @@ export function useScrollEdges<T extends HTMLElement>(): { ref: React.RefObject<
     };
     measure();
     el.addEventListener("scroll", measure, { passive: true });
+    // Observe the container *and* its content: a zoom/size change resizes the
+    // content (not the viewport), which still changes what's scrollable.
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => {
       el.removeEventListener("scroll", measure);
       ro.disconnect();

@@ -1153,9 +1153,26 @@ input:focus {
   letter-spacing: 0.04em;
 }
 
-/* One tile size, shared by the board and the rack, so a tile looks identical
-   wherever it sits. */
-.wgame { --wtile: 40px; }
+/* Two tile sizes:
+   --wtile  the rack tile — sized to fit one row (RACK_SIZE + 2 = 9 slots)
+            across the screen width without scrolling, capped at 40px.
+   --wcell  the board cell — a comfortable fixed 40px when zoomed in; in "fit"
+            mode it shrinks so the whole 15×15 board lands in the viewport. */
+.wgame {
+  --wtile: clamp(28px, calc((100vw - 2.5rem) / 9 - 4px), 40px);
+  --wcell: 40px;
+}
+.wgame.fit {
+  --wcell: clamp(14px, min(calc((100vw - 3.5rem) / 15), calc(44vh / 15)), 40px);
+}
+
+/* The Fit/Zoom toggle in the game bar. */
+.btn-zoom {
+  height: 2.4rem;
+  padding: 0 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
 
 /* Slippy board: the 15×15 grid lives in a scrollable viewport so you can pan
    around it (auto-centred on load) while the rack stays in view below. */
@@ -1213,18 +1230,26 @@ input:focus {
 }
 .wcell {
   position: relative;
-  width: var(--wtile);
-  height: var(--wtile);
+  width: var(--wcell);
+  height: var(--wcell);
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 3px;
   background: var(--felt-hi);
   color: rgba(255, 255, 255, 0.5);
-  font-size: calc(var(--wtile) * 0.28);
+  font-size: calc(var(--wcell) * 0.28);
   font-weight: 600;
   user-select: none;
 }
+/* A tile on the board sizes to its cell (so it tracks the fit/zoom size), unlike
+   a rack tile which uses --wtile. */
+.wcell .wtile {
+  width: var(--wcell);
+  height: var(--wcell);
+}
+.wcell .wtile-face { font-size: calc(var(--wcell) * 0.5); }
+.wcell .wtile-value { font-size: calc(var(--wcell) * 0.26); }
 .wcell-dl { background: #2f6f8f; }
 .wcell-tl { background: #1f5673; }
 .wcell-dw { background: #9e5a3b; }
