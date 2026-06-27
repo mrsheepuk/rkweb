@@ -8,6 +8,7 @@ import { isMuted, playRemoteTick, playTurnComplete, playWin, setMuted } from "./
 import { useActiveChipScroll } from "./useActiveChipScroll";
 import { useTurnNotification } from "./useTurnNotification";
 import { NotifyMenuItem } from "./NotifyMenuItem";
+import { InstallMenuItem } from "./Install";
 import { GAME_LABELS } from "../platform/model";
 
 const DRAFT_THROTTLE_MS = 300;
@@ -247,6 +248,7 @@ export function GameView({
                     {muted ? "Unmute sounds" : "Mute sounds"}
                   </button>
                   <NotifyMenuItem uid={meProp} onDone={() => setMenuOpen(false)} />
+                  <InstallMenuItem onDone={() => setMenuOpen(false)} />
                   <button className="menu-item" role="menuitem" onClick={onLeave}>
                     <span className="menu-ico" aria-hidden="true">⎋</span>
                     Home

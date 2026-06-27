@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { playRemoteTick, playTurnComplete, playWin } from "../../../ui/sounds";
 import { useTurnNotification } from "../../../ui/useTurnNotification";
 import { NotifyMenuItem } from "../../../ui/NotifyMenuItem";
+import { InstallMenuItem } from "../../../ui/Install";
 import { buildIndex, currentPlayerId, scorePlay } from "../engine";
 import {
   challengeWordsPlay,
@@ -233,6 +234,7 @@ export function WordsGameView({
                     </button>
                   )}
                   <NotifyMenuItem uid={meProp} onDone={() => setMenuOpen(false)} />
+                  <InstallMenuItem onDone={() => setMenuOpen(false)} />
                   <button className="menu-item" role="menuitem" onClick={onLeave}>
                     <span className="menu-ico" aria-hidden="true">⎋</span>
                     Home
