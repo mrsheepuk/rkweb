@@ -131,7 +131,8 @@ as-is, so there's no reshape, and the member-only `draft` rule is reused.
   without changing the UI/sync interface.
 - **Words Challenge = human adjudication, no dictionary.** Since the engine never
   checks words are real, the active player can **Challenge** the immediately-
-  preceding play (`applyChallenge`); its author then decides — *stand by* (play
+  preceding play (`applyChallenge`, surfaced via the game-bar ☰ menu — the same
+  `.menu` pattern as Numbers); its author then decides — *stand by* (play
   stands, no penalty to either side) or *withdraw* (`respondToChallenge` reverts
   it exactly and the author replays the turn). Two state fields drive it:
   `lastPlay` (set on every scoring commit — placements + drawn tile ids + score +
