@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 // (iOS Safari: the user must use Share → Add to Home Screen). The two platforms
 // need different treatment — a programmatic prompt vs printed instructions — so
 // the hook reports which one applies.
+//
+// The `beforeinstallprompt` event is captured in index.html (it can fire before
+// this bundle mounts, and is delivered only once) and stashed on
+// `window.__installPrompt`; here we read that and listen for changes.
 
 /** The non-standard event Chromium fires when the app is installable. */
 interface BeforeInstallPromptEvent extends Event {
@@ -12,7 +16,13 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-function isStandalone(): boolean {
+declare global {
+  interface Window {
+    __installPrompt: BeforeInstallPromptEvent | null;
+  }
+}
+
+export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return (
     window.matchMedia?.("(display-mode: standalone)").matches ||
@@ -21,7 +31,7 @@ function isStandalone(): boolean {
   );
 }
 
-function isIOS(): boolean {
+export function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
   // iPadOS 13+ reports as a Mac, so also sniff for touch to catch iPads.
@@ -40,31 +50,29 @@ export interface InstallState {
 }
 
 export function useInstallPrompt(): InstallState {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
+    typeof window !== "undefined" ? window.__installPrompt : null,
+  );
   const [installed, setInstalled] = useState(isStandalone());
 
   useEffect(() => {
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault(); // stop the mini-infobar; we drive install from our own UI
-      setDeferred(e as BeforeInstallPromptEvent);
+    // The early listener in index.html owns the event; we just mirror its state.
+    const sync = () => {
+      setDeferred(window.__installPrompt);
+      setInstalled(isStandalone());
     };
-    const onInstalled = () => {
-      setInstalled(true);
-      setDeferred(null);
-    };
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
+    window.addEventListener("installpromptchange", sync);
+    sync(); // catch an event that landed between render and effect
+    return () => window.removeEventListener("installpromptchange", sync);
   }, []);
 
   const promptInstall = async () => {
-    if (!deferred) return;
-    await deferred.prompt();
-    await deferred.userChoice;
-    setDeferred(null); // the prompt is single-use
+    const evt = window.__installPrompt;
+    if (!evt) return;
+    await evt.prompt();
+    await evt.userChoice;
+    window.__installPrompt = null; // the prompt is single-use
+    setDeferred(null);
   };
 
   return {
@@ -73,4 +81,11 @@ export function useInstallPrompt(): InstallState {
     needsIOSInstructions: isIOS() && !installed,
     promptInstall,
   };
+}
+
+/** Terse install state for the debug overlay: "inst/can/ios + display-mode". */
+export function installDebugState(): string {
+  if (typeof window === "undefined") return "n/a";
+  const mode = window.matchMedia?.("(display-mode: standalone)").matches ? "standalone" : "browser";
+  return `installed=${isStandalone()} bip=${!!window.__installPrompt} ios=${isIOS()} ${mode}`;
 }

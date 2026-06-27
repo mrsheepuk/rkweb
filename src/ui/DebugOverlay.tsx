@@ -3,6 +3,7 @@ import { clearConnLog, getConnLog, logConn, subscribeConnLog } from "../sync/con
 import { forceResync } from "../sync/connection";
 import { probeGameFromServer } from "../sync/gameSync";
 import { notifyDebugState, showTurnNotification } from "./notifications";
+import { installDebugState } from "./useInstallPrompt";
 
 // On-screen connection diagnostics for mobile, where the dev console can't be
 // reached. Rendered only when `?debug=1` is set. Shows live network/visibility
@@ -61,6 +62,7 @@ export function DebugOverlay({ gameId, stale }: { gameId: string | null; stale: 
         <span className={stale ? "bad" : "ok"}>{stale ? "stale" : "live"}</span>
         <span>snap {snapAge === null ? "—" : `${snapAge}s ago`}</span>
         <span>notify {notifyDebugState()}</span>
+        <span>install {installDebugState()}</span>
       </div>
       <div className="dbg-actions">
         <button onClick={() => void forceResync("debug-button")}>Resync</button>

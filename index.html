@@ -24,6 +24,22 @@
     />
 
     <title>Rummle</title>
+
+    <!-- Capture beforeinstallprompt as early as possible: Chromium can fire it
+         before the React bundle mounts its own listener, and the event is only
+         delivered once. Stash it so the install affordance can use it on mount. -->
+    <script>
+      window.__installPrompt = null;
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        window.__installPrompt = e;
+        window.dispatchEvent(new Event("installpromptchange"));
+      });
+      window.addEventListener("appinstalled", function () {
+        window.__installPrompt = null;
+        window.dispatchEvent(new Event("installpromptchange"));
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
