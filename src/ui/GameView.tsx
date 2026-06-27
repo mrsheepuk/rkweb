@@ -246,7 +246,7 @@ export function GameView({
                     <span className="menu-ico" aria-hidden="true">{muted ? "🔇" : "🔊"}</span>
                     {muted ? "Unmute sounds" : "Mute sounds"}
                   </button>
-                  <NotifyMenuItem onDone={() => setMenuOpen(false)} />
+                  <NotifyMenuItem uid={meProp} onDone={() => setMenuOpen(false)} />
                   <button className="menu-item" role="menuitem" onClick={onLeave}>
                     <span className="menu-ico" aria-hidden="true">⎋</span>
                     Home

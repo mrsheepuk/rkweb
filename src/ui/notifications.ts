@@ -29,7 +29,7 @@ function swSupported(): boolean {
 }
 
 /** Register the notification service worker once, caching the active registration. */
-async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!swSupported()) return null;
   if (swReg) return swReg;
   if (!swRegPromise) {

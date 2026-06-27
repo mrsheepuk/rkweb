@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { requestPermission, setPrimed, shouldPrime } from "./notifications";
+import { setPrimed, shouldPrime } from "./notifications";
+import { enableTurnNotifications } from "./notificationActions";
 
 /**
  * A one-time priming dialog shown when a playing game is open and the browser
@@ -9,7 +10,7 @@ import { requestPermission, setPrimed, shouldPrime } from "./notifications";
  * on someone who isn't ready. Either choice marks the priming flag so it never
  * reappears in this browser.
  */
-export function NotifyPrompt({ active }: { active: boolean }) {
+export function NotifyPrompt({ uid, active }: { uid: string; active: boolean }) {
   // Decide visibility once on mount: `shouldPrime` reads the permission +
   // primed flag, which only change via this dialog, so there's no live value to
   // track.
@@ -18,7 +19,9 @@ export function NotifyPrompt({ active }: { active: boolean }) {
   if (!show) return null;
 
   const enable = async () => {
-    await requestPermission();
+    // Full opt-in: request permission, set the preference, and register the push
+    // subscription — not just the bare permission prompt.
+    await enableTurnNotifications(uid);
     setShow(false);
   };
   const dismiss = () => {

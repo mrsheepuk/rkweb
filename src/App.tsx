@@ -82,7 +82,7 @@ export function App() {
     return (
       <>
         {view}
-        <NotifyPrompt active={game.status === "playing" && !testMode} />
+        <NotifyPrompt uid={user.uid} active={game.status === "playing" && !testMode} />
       </>
     );
   }

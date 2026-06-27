@@ -232,7 +232,7 @@ export function WordsGameView({
                       Challenge last play
                     </button>
                   )}
-                  <NotifyMenuItem onDone={() => setMenuOpen(false)} />
+                  <NotifyMenuItem uid={meProp} onDone={() => setMenuOpen(false)} />
                   <button className="menu-item" role="menuitem" onClick={onLeave}>
                     <span className="menu-ico" aria-hidden="true">⎋</span>
                     Home

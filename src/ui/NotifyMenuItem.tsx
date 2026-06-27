@@ -1,13 +1,17 @@
 import { useState } from "react";
-import { notificationPermission, notifyEnabled, setNotifyEnabled } from "./notifications";
+import { notificationPermission, notifyEnabled } from "./notifications";
+import { disableTurnNotifications, enableTurnNotifications } from "./notificationActions";
 
 /**
  * Shared overflow-menu item that toggles "your turn" notifications. Renders
  * nothing where the API is unsupported (e.g. an iPhone Safari tab). When the
  * browser has blocked notifications it shows as a disabled hint, since only the
  * user can unblock that in their browser settings. Used by both game menus.
+ *
+ * `uid` is the real authenticated uid, used to register/clear this account's
+ * push subscription (so closed-tab pings reach the right player).
  */
-export function NotifyMenuItem({ onDone }: { onDone?: () => void }) {
+export function NotifyMenuItem({ uid, onDone }: { uid: string; onDone?: () => void }) {
   const [perm, setPerm] = useState(notificationPermission());
   const [on, setOn] = useState(notifyEnabled());
 
@@ -23,8 +27,12 @@ export function NotifyMenuItem({ onDone }: { onDone?: () => void }) {
   }
 
   const toggle = async () => {
-    const next = await setNotifyEnabled(!on);
-    setOn(next);
+    if (on) {
+      await disableTurnNotifications(uid);
+      setOn(false);
+    } else {
+      setOn(await enableTurnNotifications(uid));
+    }
     setPerm(notificationPermission());
     onDone?.();
   };
