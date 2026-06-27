@@ -12,6 +12,7 @@ import {
 import { GameError } from "../../../platform/model";
 import type { Placement, WordsGameState } from "../model";
 import { WordsBoard, type WordsBoardHandle } from "./WordsBoard";
+import { useActiveChipScroll } from "../../../ui/useActiveChipScroll";
 
 const DRAFT_THROTTLE_MS = 300;
 
@@ -39,6 +40,7 @@ export function WordsGameView({
   const [draft, setDraft] = useState<WordsDraft | null>(null);
 
   const activeId = currentPlayerId(game);
+  const activeChipRef = useActiveChipScroll(activeId);
   const myTurn = activeId === me && game.status === "playing";
   const players = Object.values(game.players).sort((a, b) => a.seat - b.seat);
 
@@ -144,6 +146,7 @@ export function WordsGameView({
           {players.map((p) => (
             <div
               key={p.uid}
+              ref={p.uid === activeId ? activeChipRef : undefined}
               className={`turn-chip${p.uid === activeId ? " active" : ""}${p.uid === me ? " me" : ""}`}
             >
               <span className="chip-name">{p.name}</span>

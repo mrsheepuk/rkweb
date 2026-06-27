@@ -5,6 +5,7 @@ import { commitTurn, drawTile, publishDraft, subscribeDraft, type Draft } from "
 import type { MeldIds } from "../game/rules";
 import { Board, type BoardHandle } from "./Board";
 import { isMuted, playRemoteTick, playTurnComplete, playWin, setMuted } from "./sounds";
+import { useActiveChipScroll } from "./useActiveChipScroll";
 
 const DRAFT_THROTTLE_MS = 300;
 
@@ -68,6 +69,7 @@ export function GameView({
   }, [game.currentTurn, game.status]);
 
   const activeId = currentPlayerId(game);
+  const activeChipRef = useActiveChipScroll(activeId);
   const myTurn = activeId === me && game.status === "playing";
   const players = Object.values(game.players).sort((a, b) => a.seat - b.seat);
   const myRack = game.hands[me] ?? [];
@@ -164,6 +166,7 @@ export function GameView({
             return (
               <div
                 key={p.uid}
+                ref={p.uid === activeId ? activeChipRef : undefined}
                 className={`turn-chip${p.uid === activeId ? " active" : ""}${p.uid === me ? " me" : ""}`}
               >
                 <span className="chip-name">{p.name}</span>
