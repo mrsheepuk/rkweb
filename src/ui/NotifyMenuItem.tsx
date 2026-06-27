@@ -39,7 +39,7 @@ export function NotifyMenuItem({ uid, onDone }: { uid: string; onDone?: () => vo
 
   return (
     <button className="menu-item" role="menuitem" onClick={() => void toggle()}>
-      <span className="menu-ico" aria-hidden="true">{on ? "🔔" : "🔕"}</span>
+      <span className="menu-ico" aria-hidden="true">{on ? "🔕" : "🔔"}</span>
       {on ? "Disable turn notifications" : "Enable turn notifications"}
     </button>
   );
