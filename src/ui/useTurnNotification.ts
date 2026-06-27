@@ -40,17 +40,16 @@ export function useTurnNotification(opts: {
     // window); phase 2's service worker applies the same gate for closed-tab
     // pushes.
     const focused = typeof document !== "undefined" && document.hasFocus();
-    let outcome: string;
-    if (!enabled) outcome = "skip:game-inactive-or-test";
-    else if (!myTurn) outcome = "skip:not-my-turn";
-    else if (focused) outcome = "skip:tab-focused";
-    else {
-      const who = (justPlayed && players[justPlayed]?.name) || "Someone";
-      const res = showTurnNotification({ who, gameLabel, gameId });
-      outcome = res.ok ? "fired" : `skip:${res.reason}`;
-    }
+    const prefix = `turn ${from}→${currentTurn} mine=${myTurn} focus=${focused} ${notificationPermission()}`;
 
-    logConn("notify", `turn ${from}→${currentTurn} mine=${myTurn} focus=${focused} ${notificationPermission()} ${outcome}`);
+    if (!enabled) return void logConn("notify", `${prefix} skip:game-inactive-or-test`);
+    if (!myTurn) return void logConn("notify", `${prefix} skip:not-my-turn`);
+    if (focused) return void logConn("notify", `${prefix} skip:tab-focused`);
+
+    const who = (justPlayed && players[justPlayed]?.name) || "Someone";
+    void showTurnNotification({ who, gameLabel, gameId }).then((res) =>
+      logConn("notify", `${prefix} ${res.ok ? `fired:${res.via}` : `skip:${res.reason}`}`),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTurn]);
 }

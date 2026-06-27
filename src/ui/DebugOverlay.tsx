@@ -69,8 +69,9 @@ export function DebugOverlay({ gameId, stale }: { gameId: string | null; stale: 
         </button>
         <button
           onClick={() => {
-            const res = showTurnNotification({ who: "Debug", gameLabel: "test", gameId: gameId ?? "test" });
-            logConn("notify", `manual test → ${res.ok ? "fired" : `skip:${res.reason}`}`);
+            void showTurnNotification({ who: "Debug", gameLabel: "test", gameId: gameId ?? "test" }).then((res) =>
+              logConn("notify", `manual test → ${res.ok ? `fired:${res.via}` : `skip:${res.reason}`}`),
+            );
           }}
         >
           Test

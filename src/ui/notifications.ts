@@ -16,6 +16,40 @@ const PRIMED_KEY = "rummle:notify-primed"; // "1" once they've answered the prom
 
 export type NotifyPermission = NotificationPermission | "unsupported";
 
+// Cached service-worker registration used to *display* notifications. Mobile
+// browsers forbid `new Notification()` (Illegal constructor) and only allow
+// registration.showNotification(), so we register a tiny SW for opted-in players
+// and prefer it everywhere; the constructor is a fallback for browsers without
+// service-worker support. (Phase 2's push handler will live in the same SW.)
+let swReg: ServiceWorkerRegistration | null = null;
+let swRegPromise: Promise<ServiceWorkerRegistration | null> | null = null;
+
+function swSupported(): boolean {
+  return typeof navigator !== "undefined" && "serviceWorker" in navigator;
+}
+
+/** Register the notification service worker once, caching the active registration. */
+async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (!swSupported()) return null;
+  if (swReg) return swReg;
+  if (!swRegPromise) {
+    swRegPromise = navigator.serviceWorker
+      .register("/sw.js")
+      .then(() => navigator.serviceWorker.ready)
+      .then((reg) => (swReg = reg))
+      .catch(() => null);
+  }
+  return swRegPromise;
+}
+
+/**
+ * Called once at app start: if the player already opted in, warm up the service
+ * worker so the first turn notification can fire without a registration race.
+ */
+export function initNotifications(): void {
+  if (notifyEnabled()) void ensureServiceWorker();
+}
+
 /** Whether this browser exposes the Notifications API at all. */
 export function notificationsSupported(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
@@ -65,6 +99,9 @@ export async function setNotifyEnabled(on: boolean): Promise<boolean> {
   }
   if (Notification.permission !== "granted") return false;
   writePref(true);
+  // Register the SW now (a user gesture is in scope) so the first turn ping can
+  // display without waiting on registration.
+  void ensureServiceWorker();
   return true;
 }
 
@@ -103,24 +140,47 @@ export function setPrimed(): void {
 }
 
 /** Outcome of an attempt to show a notification, for debug logging. */
-export type NotifyResult = { ok: true } | { ok: false; reason: string };
+export type NotifyResult = { ok: true; via: "sw" | "constructor" } | { ok: false; reason: string };
 
 /**
- * Show a "your turn" notification. No-ops unless enabled. Tagged per game so a
- * fresh turn replaces any stale notification rather than stacking; clicking it
- * focuses the game tab. Returns what happened so callers can surface it in the
- * debug log.
+ * Show a "your turn" notification. No-ops unless enabled. Prefers the service
+ * worker's showNotification (required on mobile, where `new Notification()`
+ * throws), falling back to the constructor on browsers without a SW. Tagged per
+ * game so a fresh turn replaces any stale notification rather than stacking;
+ * clicking it focuses the game tab. Returns what happened so callers can surface
+ * it in the debug log.
  */
-export function showTurnNotification(opts: { who: string; gameLabel: string; gameId: string }): NotifyResult {
+export async function showTurnNotification(opts: {
+  who: string;
+  gameLabel: string;
+  gameId: string;
+}): Promise<NotifyResult> {
   if (!notificationsSupported()) return { ok: false, reason: "unsupported" };
   if (Notification.permission !== "granted") return { ok: false, reason: `perm=${Notification.permission}` };
   if (!readPref()) return { ok: false, reason: "pref-off" };
+
+  const title = "Your turn!";
+  const body = `${opts.who} just played — it's your turn in ${opts.gameLabel}`;
+  const tag = `rummle-turn-${opts.gameId}`;
+  const data = { url: typeof location !== "undefined" ? location.origin : "/" };
+
+  // Mobile path: display via the service worker.
+  if (swSupported()) {
+    try {
+      const reg = await ensureServiceWorker();
+      if (reg) {
+        await reg.showNotification(title, { body, tag, icon: "/favicon.svg", data });
+        return { ok: true, via: "sw" };
+      }
+    } catch (e) {
+      return { ok: false, reason: `sw-error:${e instanceof Error ? e.name : "unknown"}` };
+    }
+  }
+
+  // Desktop fallback: the constructor (works on Firefox/older setups without a
+  // controlling SW).
   try {
-    const n = new Notification("Your turn!", {
-      body: `${opts.who} just played — it's your turn in ${opts.gameLabel}`,
-      tag: `rummle-turn-${opts.gameId}`,
-      icon: "/favicon.svg",
-    });
+    const n = new Notification(title, { body, tag, icon: "/favicon.svg" });
     n.onclick = () => {
       try {
         window.focus();
@@ -129,10 +189,8 @@ export function showTurnNotification(opts: { who: string; gameLabel: string; gam
       }
       n.close();
     };
-    return { ok: true };
+    return { ok: true, via: "constructor" };
   } catch (e) {
-    // e.g. permission revoked between the gate and here, or a platform that
-    // throws on the constructor (some iOS/Android-tab cases).
     return { ok: false, reason: `error:${e instanceof Error ? e.name : "unknown"}` };
   }
 }

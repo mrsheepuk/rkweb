@@ -840,9 +840,7 @@ input:focus {
 }
 
 .dbg-log li {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .dbg-log code {
