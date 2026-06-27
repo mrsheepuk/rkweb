@@ -45,6 +45,7 @@ export function WordsGameView({
   // Board view: fit-whole-board by default; the game-bar button toggles to the
   // zoomed-in slippy view.
   const [zoomed, setZoomed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [draft, setDraft] = useState<WordsDraft | null>(null);
 
   const activeChipRef = useActiveChipScroll(activeId);
@@ -190,9 +191,41 @@ export function WordsGameView({
           >
             {zoomed ? <FitIcon /> : <ZoomIcon />}
           </button>
-          <button className="btn btn-icon" aria-label="Home" onClick={onLeave}>
-            ⎋
-          </button>
+          <div className="menu">
+            <button
+              className={`btn btn-icon menu-button${menuOpen ? " is-active" : ""}`}
+              aria-label="Game menu"
+              aria-haspopup="true"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              ☰
+            </button>
+            {menuOpen && (
+              <>
+                <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+                <div className="menu-dropdown" role="menu">
+                  {canChallenge && (
+                    <button
+                      className="menu-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onChallenge();
+                      }}
+                    >
+                      <span className="menu-ico" aria-hidden="true">⚑</span>
+                      Challenge last play
+                    </button>
+                  )}
+                  <button className="menu-item" role="menuitem" onClick={onLeave}>
+                    <span className="menu-ico" aria-hidden="true">⎋</span>
+                    Home
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -275,11 +308,6 @@ export function WordsGameView({
                 <button className="btn btn-action" disabled={busy} onClick={onPass}>
                   Pass
                 </button>
-                {canChallenge && (
-                  <button className="btn btn-action is-challenge" disabled={busy} onClick={onChallenge}>
-                    Challenge
-                  </button>
-                )}
               </>
             )}
           </>
