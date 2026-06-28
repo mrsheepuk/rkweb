@@ -70,9 +70,10 @@ jobs:
           # from shell env vars — so write functions/.env (gitignored, ephemeral
           # on the runner) for the deploy to read. The private key stays in
           # Secret Manager (bound via defineSecret).
+          VAPID_SUBJECT="${VAPID_SUBJECT:-mailto:notifications@rummle.app}"
           printf 'VAPID_PUBLIC_KEY=%s\nVAPID_SUBJECT=%s\n' "$VAPID_PUBLIC_KEY" "$VAPID_SUBJECT" > functions/.env
           npx -y firebase-tools@^15.22.3 deploy --only functions --project rummle-prod --non-interactive --force
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RUMMLE_PROD }}
           VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
-          VAPID_SUBJECT: mailto:notifications@rummle.app
+          VAPID_SUBJECT: ${{ secrets.VITE_VAPID_SUBJECT }}
